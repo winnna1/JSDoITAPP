@@ -74,6 +74,7 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                 </View>
 
+
                 {/* 선택 날짜 일정 리스트 */}
                 <View style={styles.taskList}>
                     {dayTasks.length === 0 ? (
