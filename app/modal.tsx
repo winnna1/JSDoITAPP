@@ -1,29 +1,35 @@
-import { Link } from 'expo-router';
-import { StyleSheet } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+// app/modal.tsx
+import React from "react";
+import { View, Text, Button, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
 
 export default function ModalScreen() {
+  const router = useRouter();
+
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">This is a modal</ThemedText>
-      <Link href="/" dismissTo style={styles.link}>
-        <ThemedText type="link">Go to home screen</ThemedText>
-      </Link>
-    </ThemedView>
+      <View style={styles.container}>
+        <Text style={styles.title}>💬 알림창</Text>
+        <Text style={styles.desc}>이건 모달(팝업) 화면입니다!</Text>
+        <Button title="닫기" onPress={() => router.back()} />
+      </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  desc: {
+    fontSize: 16,
+    color: "#444",
+    marginBottom: 20,
   },
 });
