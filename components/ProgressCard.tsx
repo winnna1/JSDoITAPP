@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
+// @ts-ignore
 export default function ProgressCard({ title, progress, description }) {
     return (
         <View style={styles.card}>

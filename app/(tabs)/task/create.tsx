@@ -1,27 +1,59 @@
-// app/(tabs)/task/create.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Switch, StyleSheet, ScrollView } from "react-native";
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Switch,
+    StyleSheet,
+    ScrollView,
+    Alert,
+    ViewStyle,
+} from "react-native";
 import { useRouter } from "expo-router";
 import CalendarView from "../../../components/CalendarView";
 
 export default function CreateTaskScreen() {
     const router = useRouter();
+
+    // State variables
     const [name, setName] = useState("");
     const [desc, setDesc] = useState("");
     const [startTime, setStartTime] = useState("06 : 00 PM");
     const [endTime, setEndTime] = useState("09 : 00 PM");
     const [priority, setPriority] = useState("Medium");
-    const [alert, setAlert] = useState(false);
+    const [alertEnabled, setAlertEnabled] = useState(false); // 이름 중복 방지
+
+    // ✅ Task 생성 함수
+    const handleCreate = () => {
+        if (!name.trim()) {
+            Alert.alert("⚠️ Missing name", "Please enter a task name.");
+            return;
+        }
+
+        Alert.alert(
+            "✅ Task Created!",
+            `Your task "${name}" has been added successfully.`,
+            [{ text: "OK", onPress: () => router.back() }]
+        );
+    };
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 50 }}>
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={{ paddingBottom: 50 }}
+        >
+            {/* Back button */}
             <TouchableOpacity onPress={() => router.back()}>
                 <Text style={styles.back}>←</Text>
             </TouchableOpacity>
 
             <Text style={styles.title}>Create new task</Text>
+
+            {/* Calendar */}
             <CalendarView />
 
+            {/* Input fields */}
             <Text style={styles.sectionTitle}>Schedule</Text>
 
             <TextInput
@@ -31,6 +63,7 @@ export default function CreateTaskScreen() {
                 value={name}
                 onChangeText={setName}
             />
+
             <TextInput
                 style={[styles.input, { height: 80 }]}
                 placeholder="Description"
@@ -40,6 +73,7 @@ export default function CreateTaskScreen() {
                 onChangeText={setDesc}
             />
 
+            {/* Time */}
             <View style={styles.timeRow}>
                 <View style={styles.timeBox}>
                     <Text style={styles.timeLabel}>Start Time</Text>
@@ -51,6 +85,7 @@ export default function CreateTaskScreen() {
                 </View>
             </View>
 
+            {/* Priority Buttons */}
             <Text style={styles.sectionTitle}>Priority</Text>
             <View style={styles.priorityRow}>
                 {["High", "Medium", "Low"].map((p) => (
@@ -58,31 +93,46 @@ export default function CreateTaskScreen() {
                         key={p}
                         style={[
                             styles.priorityButton,
-                            priority === p && styles.priorityActive(p),
+                            priority === p && getPriorityStyle(p),
                         ]}
                         onPress={() => setPriority(p)}
                     >
-                        <Text style={[
-                            styles.priorityText,
-                            priority === p && styles.priorityTextActive(p),
-                        ]}>
+                        <Text
+                            style={[
+                                styles.priorityText,
+                                priority === p && styles.priorityTextActive,
+                            ]}
+                        >
                             {p}
                         </Text>
                     </TouchableOpacity>
                 ))}
             </View>
 
+            {/* Alert Toggle */}
             <View style={styles.alertRow}>
                 <Text style={styles.alertText}>Get alert for this task</Text>
-                <Switch value={alert} onValueChange={setAlert} thumbColor="#a78bfa" />
+                <Switch
+                    value={alertEnabled}
+                    onValueChange={setAlertEnabled}
+                    thumbColor="#a78bfa"
+                />
             </View>
 
-            <TouchableOpacity style={styles.createBtn} onPress={() => alert("Task Created!")}>
+            {/* Create Button */}
+            <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
                 <Text style={styles.createText}>Create Task</Text>
             </TouchableOpacity>
         </ScrollView>
     );
 }
+
+// ✅ View 전용 스타일 함수 (타입 명시)
+const getPriorityStyle = (p: string): ViewStyle => ({
+    backgroundColor:
+        p === "High" ? "#f87171" : p === "Medium" ? "#a78bfa" : "#4ade80",
+    borderColor: "transparent",
+});
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000", padding: 20 },
@@ -126,15 +176,11 @@ const styles = StyleSheet.create({
         marginHorizontal: 4,
         alignItems: "center",
     },
-    priorityActive: (p: string) => ({
-        backgroundColor: p === "High" ? "#f87171" : p === "Medium" ? "#a78bfa" : "#4ade80",
-        borderColor: "transparent",
-    }),
     priorityText: { color: "#ccc" },
-    priorityTextActive: (p: string) => ({
+    priorityTextActive: {
         color: "#fff",
         fontWeight: "bold",
-    }),
+    },
     alertRow: {
         flexDirection: "row",
         justifyContent: "space-between",
