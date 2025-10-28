@@ -29,35 +29,49 @@ function toKey(d: Date) {
 }
 
 function getMonthMatrix(viewDate: Date): Cell[] {
-    const y = viewDate.getFullYear();
-    const m = viewDate.getMonth();
-    const first = new Date(y, m, 1);
-    const startWeekday = first.getDay(); // 0=일
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const prevDaysInMonth = new Date(y, m, 0).getDate();
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth(); // 0~11
     const today = new Date();
+
     const isSameDay = (a: Date, b: Date) =>
         a.getFullYear() === b.getFullYear() &&
         a.getMonth() === b.getMonth() &&
         a.getDate() === b.getDate();
 
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startWeekday = firstDayOfMonth.getDay(); // 0=일, 6=토
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate(); // 이전 달 마지막 날
+
     const cells: Cell[] = [];
-    for (let i = startWeekday - 0; i > 0; i--) {
-        const d = new Date(y, m - 1, prevDaysInMonth - i + 1);
-        cells.push({ date: d, inCurrentMonth: false, isToday: isSameDay(d, today) });
+
+    // 1) 이전 달 패딩: 이번 달 1일의 요일만큼 정확히 채움
+    for (let i = startWeekday; i > 0; i--) {
+        const date = new Date(year, month - 1, daysInPrevMonth - i + 1);
+        cells.push({ date, inCurrentMonth: false, isToday: isSameDay(date, today) });
     }
+
+    // 2) 이번 달
     for (let d = 1; d <= daysInMonth; d++) {
-        const cur = new Date(y, m, d);
-        cells.push({ date: cur, inCurrentMonth: true, isToday: isSameDay(cur, today) });
+        const date = new Date(year, month, d);
+        cells.push({ date, inCurrentMonth: true, isToday: isSameDay(date, today) });
     }
-    while (cells.length < 42) {
-        const last = cells[cells.length - 1].date;
-        const next = new Date(last);
-        next.setDate(last.getDate() + 1);
-        cells.push({ date: next, inCurrentMonth: false, isToday: isSameDay(next, today) });
+
+    // 3) 총 주 수 결정: 5주(35칸) 또는 6주(42칸)
+    const needed = startWeekday + daysInMonth;        // 이번 달이 차지하는 칸 수(이전 패딩 포함)
+    const totalWeeks = needed <= 35 ? 5 : 6;          // 35칸이면 5주, 넘으면 6주
+    const totalCells = totalWeeks * 7;                // 35 또는 42
+
+    // 4) 다음 달 패딩: 남는 칸 채움
+    let nextDay = 1;
+    while (cells.length < totalCells) {
+        const date = new Date(year, month + 1, nextDay++);
+        cells.push({ date, inCurrentMonth: false, isToday: isSameDay(date, today) });
     }
+
     return cells;
 }
+
 
 export default function CalendarView({ selected, onDateSelect, markers = {} }: Props) {
     const [viewDate, setViewDate] = useState<Date>(selected ?? new Date());
@@ -86,7 +100,7 @@ export default function CalendarView({ selected, onDateSelect, markers = {} }: P
     };
 
     const onPick = (d: Date) => {
-        setSelectedDate(d);            // ✅ 항상 채워진 색 유지
+        setSelectedDate(d);
         onDateSelect?.(d);
     };
 
@@ -106,7 +120,7 @@ export default function CalendarView({ selected, onDateSelect, markers = {} }: P
 
             <View style={styles.weekRow}>
                 {WEEK.map((w) => (
-                    <Text key={w} style={[styles.weekText, w === "일" && { color: "#ff6b6b" }]}>
+                    <Text key={w} style={[styles.weekText, w === "SAT" && { color: "#ff6b6b" },  w === "SUN" && { color: "#ff6b6b" }]}>
                         {w}
                     </Text>
                 ))}
@@ -149,7 +163,7 @@ export default function CalendarView({ selected, onDateSelect, markers = {} }: P
     );
 }
 
-const BOX = 40;
+const BOX = 50;
 
 const styles = StyleSheet.create({
     wrap: { alignItems: "center" },
@@ -191,7 +205,7 @@ const styles = StyleSheet.create({
     todayRing: { borderWidth: 1.5, borderColor: "#a78bfa" },
     dotsRow: {
         position: "absolute",
-        bottom: -10,              // 숫자와 점 사이 간격 ↑
+        bottom: -6,              // 숫자와 점 사이 간격 ↑
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
