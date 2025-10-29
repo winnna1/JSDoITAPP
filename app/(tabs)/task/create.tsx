@@ -61,7 +61,7 @@ export default function CreateTaskScreen() {
 
     const handleCreate = () => {
         if (!name.trim()) {
-            Alert.alert("⚠️ Missing name", "Please enter a task name.");
+            Alert.alert("Missing name", "Please enter a task name.");
             return;
         }
         if (endTime.getTime() <= startTime.getTime()) {
@@ -77,8 +77,8 @@ export default function CreateTaskScreen() {
             date: dateKey,
             priority,
             alertEnabled,                         // 토글 값 그대로
-            startTime: startTime.toISOString(),   // ✅ ISO로 저장
-            endTime: endTime.toISOString(),       // ✅ ISO로 저장
+            startTime: startTime.toISOString(),   // ISO로 저장
+            endTime: endTime.toISOString(),       // ISO로 저장
         });
 
         Alert.alert("✅ Task Created!", `"${name}" on ${dateKey}`, [
@@ -134,7 +134,7 @@ export default function CreateTaskScreen() {
                 <DateTimePicker
                     value={showPicker === "start" ? startTime : endTime}
                     mode="time"
-                    display={Platform.OS === "ios" ? "default" : "default"}         // ⬅︎ 변경: 호환 안전
+                    display={Platform.OS === "ios" ? "default" : "default"}         // 변경: 호환 안전
                     is24Hour={false}
                     onChange={onChangeTime}
                 />

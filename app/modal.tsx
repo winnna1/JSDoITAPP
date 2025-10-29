@@ -8,7 +8,7 @@ export default function ModalScreen() {
 
   return (
       <View style={styles.container}>
-        <Text style={styles.title}>💬 알림창</Text>
+        <Text style={styles.title}>알림창</Text>
         <Text style={styles.desc}>이건 모달(팝업) 화면입니다!</Text>
         <Button title="닫기" onPress={() => router.back()} />
       </View>
