@@ -8,7 +8,7 @@ export default function RootLayout() {
     return (
         <SafeAreaProvider>
             <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
-                {/* ✅ TasksProvider만 사용 */}
+                {/* TasksProvider만 사용 */}
                 <TasksProvider>
                     <Stack screenOptions={{ headerShown: false }} />
                     <StatusBar style="light" />

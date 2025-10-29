@@ -12,7 +12,7 @@ import {
     KeyboardAvoidingView,
     SafeAreaView,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router"; // 추가됨
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import CalendarView from "../../../components/CalendarView";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,14 +22,19 @@ const BASE_URL =
 
 export default function CreateTaskScreen() {
     const router = useRouter();
+    const { date } = useLocalSearchParams(); // 전달받은 날짜
 
-    const [selectedDate, setSelectedDate] = useState(new Date());
+    // 전달받은 date가 있으면 그걸 초기값으로, 없으면 오늘
+    const [selectedDate, setSelectedDate] = useState(() => {
+        if (date) return new Date(date as string);
+        return new Date();
+    });
+
     const [name, setName] = useState("");
     const [content, setContent] = useState("");
     const [priority, setPriority] = useState("Medium");
     const [alertEnabled, setAlertEnabled] = useState(false);
 
-    // 시간 선택
     const [startTime, setStartTime] = useState<Date>(() => {
         const d = new Date();
         d.setHours(18, 0, 0, 0);
@@ -69,6 +74,14 @@ export default function CreateTaskScreen() {
         }
     };
 
+    // ✅ 한국 시간 기준으로 날짜 포맷팅
+    const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
     const handleCreate = async () => {
         if (!name.trim()) return Alert.alert("입력 오류", "이름을 입력하세요.");
 
@@ -78,7 +91,7 @@ export default function CreateTaskScreen() {
         const newTask = {
             title: name,
             content: content,
-            date: selectedDate.toISOString().split("T")[0],
+            date: formatLocalDate(selectedDate), // 클릭한 날짜 그대로 저장
             priority,
             alertEnabled,
             startTime: startTime.toISOString(),
@@ -123,7 +136,12 @@ export default function CreateTaskScreen() {
 
                     <Text style={styles.title}>Create New Task</Text>
 
-                    {/* 날짜 선택 */}
+                    {/* 선택된 날짜 표시 */}
+                    <Text style={styles.dateDisplay}>
+                        📅 {formatLocalDate(selectedDate)}
+                    </Text>
+
+                    {/* 캘린더 */}
                     <CalendarView selected={selectedDate} onDateSelect={setSelectedDate} />
 
                     {/* 입력 */}
@@ -189,7 +207,7 @@ export default function CreateTaskScreen() {
                         <Switch value={alertEnabled} onValueChange={setAlertEnabled} />
                     </View>
 
-                    {/*버튼 */}
+                    {/* 버튼 */}
                     <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
                         <Text style={styles.createText}>Create Task</Text>
                     </TouchableOpacity>
@@ -206,6 +224,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000", padding: 20 },
     back: { color: "#fff", fontSize: 22 },
     title: { color: "#fff", fontSize: 24, fontWeight: "bold", marginVertical: 10 },
+    dateDisplay: { color: "#a78bfa", fontSize: 16, marginBottom: 10 },
     input: {
         backgroundColor: "#16161a",
         color: "#fff",

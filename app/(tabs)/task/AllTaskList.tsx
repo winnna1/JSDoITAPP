@@ -7,6 +7,7 @@ import {
     ScrollView,
     Platform,
     Alert,
+    Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,8 +19,42 @@ const BASE_URL =
 export default function AllTaskListScreen() {
     const router = useRouter();
     const [tasks, setTasks] = useState<any[]>([]);
+    const [userImage, setUserImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    // 사용자 프로필 불러오기
+    const loadUserProfile = async () => {
+        try {
+            const token = await AsyncStorage.getItem("accessToken");
+            if (!token) return;
+
+            // AsyncStorage에 캐시된 user 있으면 먼저 사용
+            const cached = await AsyncStorage.getItem("user");
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed.imageUrl) {
+                    setUserImage(`${BASE_URL}${parsed.imageUrl}`);
+                    return; // 바로 종료 (빠른 로딩)
+                }
+            }
+
+            // 없으면 서버에서 직접 요청
+            const res = await fetch(`${BASE_URL}/profile`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error("프로필 요청 실패");
+            const profile = await res.json();
+
+            if (profile.imageUrl) {
+                setUserImage(`${BASE_URL}${profile.imageUrl}`);
+                await AsyncStorage.setItem("user", JSON.stringify(profile));
+            }
+        } catch (err) {
+            console.error("프로필 불러오기 실패:", err);
+        }
+    };
+
+    // Task 불러오기
     useEffect(() => {
         const loadTasks = async () => {
             try {
@@ -43,10 +78,19 @@ export default function AllTaskListScreen() {
         };
 
         loadTasks();
+        loadUserProfile(); // 프로필도 함께 불러옴
     }, []);
 
-    const today = new Date().toISOString().split("T")[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    // 한국 시간 기준으로 날짜 계산
+    const getLocalDate = (offsetDays = 0) => {
+        const date = new Date();
+        date.setDate(date.getDate() + offsetDays);
+        return date.toLocaleDateString("sv-SE"); // "YYYY-MM-DD" 형식
+    };
+
+    const today = getLocalDate(0);
+    const tomorrow = getLocalDate(1);
+
 
     const todayTasks = tasks.filter((t) => t.date === today);
     const tomorrowTasks = tasks.filter((t) => t.date === tomorrow);
@@ -62,12 +106,18 @@ export default function AllTaskListScreen() {
                 <TouchableOpacity onPress={() => router.back()}>
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
+
                 <Text style={styles.headerText}>
                     You have {totalTasks} tasks{"\n"}to complete
                 </Text>
 
+                {/* 프로필 사진 */}
                 <TouchableOpacity onPress={handleProfile}>
-                    <View style={styles.avatar}></View>
+                    {userImage ? (
+                        <Image source={{ uri: userImage }} style={styles.avatar} />
+                    ) : (
+                        <View style={[styles.avatar, { backgroundColor: "#3f3f46" }]} />
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -153,9 +203,21 @@ const styles = StyleSheet.create({
         marginTop: 40,
     },
     backArrow: { color: "#fff", fontSize: 22 },
-    headerText: { color: "#fff", fontSize: 20, fontWeight: "bold", flex: 1, marginLeft: 12 },
-    avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#3f3f46" },
-    sectionTitle: { color: "#fff", fontSize: 18, fontWeight: "600", marginTop: 20, marginBottom: 10 },
+    headerText: {
+        color: "#fff",
+        fontSize: 20,
+        fontWeight: "bold",
+        flex: 1,
+        marginLeft: 12,
+    },
+    avatar: { width: 40, height: 40, borderRadius: 20 },
+    sectionTitle: {
+        color: "#fff",
+        fontSize: 18,
+        fontWeight: "600",
+        marginTop: 20,
+        marginBottom: 10,
+    },
     taskCard: {
         flexDirection: "row",
         alignItems: "center",
