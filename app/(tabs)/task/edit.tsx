@@ -7,7 +7,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import CalendarView, { Priority } from "../../../components/CalendarView";
-import { useTasks, toKey } from "../../context/TasksContext";
+import { useTasks, toKey } from "@/context/TasksContext";
 
 export default function EditTaskScreen() {
     const router = useRouter();
@@ -32,7 +32,7 @@ export default function EditTaskScreen() {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [name, setName] = useState(task.title);
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [desc, setDesc] = useState(task.desc ?? "");
+    const [desc, setContent] = useState(task.content ?? "");
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [priority, setPriority] = useState<Priority>(task.priority as Priority);
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -114,7 +114,7 @@ export default function EditTaskScreen() {
                 placeholderTextColor="#888"
                 multiline
                 value={desc}
-                onChangeText={setDesc}
+                onChangeText={setContent}
             />
 
             <View style={styles.timeRow}>
