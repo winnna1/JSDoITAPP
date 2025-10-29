@@ -1,41 +1,37 @@
-// app/(tabs)/home.tsx
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import CalendarView, { Priority } from "../../components/CalendarView";
 import ProgressCard from "../../components/ProgressCard";
 import FloatingButton from "../../components/FloatingButton";
-import { useTasks, toKey } from "../context/TasksContext";
+import { useTasks, toKey } from "../../context/TasksContext";
 
 export default function HomeScreen() {
     const router = useRouter();
-    const { tasksByDate } = useTasks();
+    const { tasksByDate, reloadTasks } = useTasks();
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-    // 달력 마커: 날짜별 우선순위 배열
+    // 화면 들어올 때 토큰이 존재하면 reloadTasks 실행
+    useFocusEffect(
+        React.useCallback(() => {
+            reloadTasks();
+        }, [reloadTasks])
+    );
+
     const markers = useMemo<Record<string, Priority[]>>(() => {
         const m: Record<string, Priority[]> = {};
         for (const [dateKey, arr] of Object.entries(tasksByDate)) {
-            m[dateKey] = arr.map((t) => t.priority as Priority);
+            m[dateKey] = arr.map((t) => t.priority);
         }
         return m;
     }, [tasksByDate]);
 
     const dayKey = toKey(selectedDate);
-    const dayTasksRaw = tasksByDate[dayKey] ?? [];
 
-    // 시작 시간 기준 정렬 (없으면 날짜로 fallback)
-    const dayTasks = useMemo(
-        () =>
-            [...dayTasksRaw].sort(
-                (a, b) =>
-                    new Date(a.startTime ?? a.date).getTime() -
-                    new Date(b.startTime ?? b.date).getTime()
-            ),
-        [dayTasksRaw]
-    );
+    const dayTasks = tasksByDate[dayKey] ?? [];
 
-    const completed = dayTasks.filter((t: any) => t.done).length;
+    const completed = dayTasks.filter((t) => t.done).length;
     const progress = dayTasks.length ? completed / dayTasks.length : 0;
 
     const ftime = (iso?: string) =>
@@ -50,14 +46,12 @@ export default function HomeScreen() {
     return (
         <View style={styles.container}>
             <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* 달력 */}
                 <CalendarView
                     selected={selectedDate}
                     onDateSelect={setSelectedDate}
                     markers={markers}
                 />
 
-                {/* 선택 날짜 일정 헤더 */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>
                         {dayKey} 일정 ({dayTasks.length})
@@ -74,8 +68,6 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                 </View>
 
-
-                {/* 선택 날짜 일정 리스트 */}
                 <View style={styles.taskList}>
                     {dayTasks.length === 0 ? (
                         <Text style={styles.emptyText}>이 날짜에는 일정이 없어요.</Text>
@@ -87,21 +79,20 @@ export default function HomeScreen() {
                                 activeOpacity={0.8}
                                 onPress={() =>
                                     router.push({
-                                        pathname: "/(tabs)/task/edit", // 카드 탭 → 수정 화면
+                                        pathname: "/(tabs)/task/edit",
                                         params: { id: t.id },
                                     })
                                 }
                             >
                                 <Text style={styles.taskTitle}>{t.title}</Text>
                                 <Text style={styles.taskTime}>
-                                    {ftime(t.startTime)} ~ {ftime(t.endTime)}  ({t.priority})
+                                    {ftime(t.startTime)} ~ {ftime(t.endTime)} ({t.priority})
                                 </Text>
                             </TouchableOpacity>
                         ))
                     )}
                 </View>
 
-                {/* Progress (선택 날짜 기준) */}
                 <View style={styles.progressHeader}>
                     <Text style={styles.sectionTitle}>Progress</Text>
                     <TouchableOpacity
@@ -122,7 +113,6 @@ export default function HomeScreen() {
                 />
             </ScrollView>
 
-            {/* Floating + 버튼 (새 할 일) */}
             <FloatingButton
                 onPress={() =>
                     router.push({
@@ -137,7 +127,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#0b0b0f", padding: 20 },
-
     sectionHeader: {
         marginTop: 16,
         marginBottom: 8,
@@ -152,17 +141,10 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "flex-end",
     },
-
     sectionTitle: { fontSize: 20, color: "#fff", fontWeight: "bold" },
     link: { color: "#a78bfa", fontSize: 14 },
-
-    taskList: {
-        backgroundColor: "#16161a",
-        borderRadius: 10,
-        padding: 8,
-    },
+    taskList: { backgroundColor: "#16161a", borderRadius: 10, padding: 8 },
     emptyText: { color: "#aaa", textAlign: "center", padding: 12 },
-
     taskItem: {
         paddingVertical: 12,
         paddingHorizontal: 10,

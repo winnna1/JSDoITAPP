@@ -80,24 +80,6 @@ export default function LoginScreen() {
                 ["refreshToken", refresh ?? ""],
             ]);
 
-            // 프로필 요청
-            const profile = await apiRequest(`${BASE_URL}/profile`, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-            });
-
-            console.log("프로필:", profile);
-
-            // 로컬 저장
-            await AsyncStorage.setItem("user", JSON.stringify(profile));
-
-            // 알림
-            const name = profile.nickname || profile.username || email;
-            Alert.alert("로그인 성공", `어서오세요! ${name}님!`);
-
             router.replace("/(tabs)/home");
         } catch (err: any) {
             console.error("로그인 실패:", err);

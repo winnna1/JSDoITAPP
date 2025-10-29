@@ -1,46 +1,56 @@
-// app/(tabs)/task/create.tsx
 import React, { useState } from "react";
 import {
-    View, Text, TextInput, TouchableOpacity, Switch, StyleSheet,
-    ScrollView, Alert, ViewStyle, Platform
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    Switch,
+    StyleSheet,
+    ScrollView,
+    Alert,
+    Platform,
+    KeyboardAvoidingView,
+    SafeAreaView,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-
 import CalendarView from "../../../components/CalendarView";
-import { useTasks, toKey } from "../../context/TasksContext";
-import type { Priority } from "../../../components/CalendarView";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const BASE_URL =
+    Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
 
 export default function CreateTaskScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams<{ date?: string }>();
-    const { addTask } = useTasks();
 
-    const initialDate = params.date ? new Date(params.date) : new Date();
-
-    // 날짜 / 입력값
-    const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
+    const [selectedDate, setSelectedDate] = useState(new Date());
     const [name, setName] = useState("");
-    const [desc, setDesc] = useState("");
-    const [priority, setPriority] = useState<Priority>("Medium");
+    const [content, setContent] = useState("");
+    const [priority, setPriority] = useState("Medium");
     const [alertEnabled, setAlertEnabled] = useState(false);
 
-    // 시간 (Date 객체로 관리)
+    // 시간 선택
     const [startTime, setStartTime] = useState<Date>(() => {
-        const d = new Date(); d.setHours(18, 0, 0, 0); return d; // 06:00 PM
+        const d = new Date();
+        d.setHours(18, 0, 0, 0);
+        return d;
     });
     const [endTime, setEndTime] = useState<Date>(() => {
-        const d = new Date(); d.setHours(21, 0, 0, 0); return d; // 09:00 PM
+        const d = new Date();
+        d.setHours(21, 0, 0, 0);
+        return d;
     });
 
-    // 어떤 피커를 띄울지
     const [showPicker, setShowPicker] = useState<null | "start" | "end">(null);
 
     const formatTime = (d: Date) =>
-        d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: true });
+        d.toLocaleTimeString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+        });
 
-    const onChangeTime = (event: DateTimePickerEvent, date?: Date) => {
-        // 안드로이드는 선택/취소 시 자동으로 닫히므로 여기서 닫아줌
+    const onChangeTime = (_e: DateTimePickerEvent, date?: Date) => {
         if (Platform.OS === "android") setShowPicker(null);
         if (!date) return;
 
@@ -59,190 +69,179 @@ export default function CreateTaskScreen() {
         }
     };
 
-    const handleCreate = () => {
-        if (!name.trim()) {
-            Alert.alert("Missing name", "Please enter a task name.");
-            return;
-        }
-        if (endTime.getTime() <= startTime.getTime()) {
-            Alert.alert("시간 확인", "End Time은 Start Time 이후여야 합니다.");
-            return;
-        }
+    const handleCreate = async () => {
+        if (!name.trim()) return Alert.alert("입력 오류", "이름을 입력하세요.");
 
-        const dateKey = toKey(selectedDate);
+        const token = await AsyncStorage.getItem("accessToken");
+        if (!token) return Alert.alert("로그인 필요", "로그인 후 이용하세요.");
 
-        addTask({
+        const newTask = {
             title: name,
-            desc,
-            date: dateKey,
+            content: content,
+            date: selectedDate.toISOString().split("T")[0],
             priority,
-            alertEnabled,                         // 토글 값 그대로
-            startTime: startTime.toISOString(),   // ISO로 저장
-            endTime: endTime.toISOString(),       // ISO로 저장
-        });
+            alertEnabled,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+        };
 
-        Alert.alert("✅ Task Created!", `"${name}" on ${dateKey}`, [
-            { text: "OK", onPress: () => router.back() },
-        ]);
+        try {
+            const res = await fetch(`${BASE_URL}/api/v1/task`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(newTask),
+            });
+
+            if (!res.ok) throw new Error("작업 생성 실패");
+
+            Alert.alert("Task Created!", `"${name}"이 추가되었습니다.`, [
+                { text: "OK", onPress: () => router.back() },
+            ]);
+        } catch (err) {
+            console.error("Task 생성 오류:", err);
+            Alert.alert("실패", "작업을 생성할 수 없습니다.");
+        }
     };
 
-
     return (
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 50 }}>
-            <TouchableOpacity onPress={() => router.back()}>
-                <Text style={styles.back}>←</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.title}>Create new task</Text>
-
-            {/* 선택 유지되는 달력 */}
-            <CalendarView selected={selectedDate} onDateSelect={setSelectedDate} />
-
-            <Text style={styles.sectionTitle}>Schedule</Text>
-
-            <TextInput
-                style={styles.input}
-                placeholder="Name"
-                placeholderTextColor="#888"
-                value={name}
-                onChangeText={setName}
-            />
-            <TextInput
-                style={[styles.input, { height: 80 }]}
-                placeholder="Description"
-                placeholderTextColor="#888"
-                multiline
-                value={desc}
-                onChangeText={setDesc}
-            />
-
-            {/* Time Row */}
-            <View style={styles.timeRow}>
-                <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("start")}>
-                    <Text style={styles.timeLabel}>Start Time</Text>
-                    <Text style={styles.timeValue}>{formatTime(startTime)}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("end")}>
-                    <Text style={styles.timeLabel}>End Time</Text>
-                    <Text style={styles.timeValue}>{formatTime(endTime)}</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* iOS/Android 네이티브 시간 피커 */}
-            {showPicker && (
-                <DateTimePicker
-                    value={showPicker === "start" ? startTime : endTime}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "default" : "default"}         // 변경: 호환 안전
-                    is24Hour={false}
-                    onChange={onChangeTime}
-                />
-            )}
-
-            <Text style={styles.sectionTitle}>Priority</Text>
-            <View style={styles.priorityRow}>
-                {(["High", "Medium", "Low"] as Priority[]).map((p) => (
-                    <TouchableOpacity
-                        key={p}
-                        style={[styles.priorityButton, priority === p && getPriorityStyle(p)]}
-                        onPress={() => setPriority(p)}
-                    >
-                        <Text style={[styles.priorityText, priority === p && styles.priorityTextActive]}>
-                            {p}
-                        </Text>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                style={{ flex: 1 }}
+            >
+                <ScrollView
+                    style={styles.container}
+                    contentContainerStyle={{ paddingBottom: 100 }}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <TouchableOpacity onPress={() => router.back()}>
+                        <Text style={styles.back}>←</Text>
                     </TouchableOpacity>
-                ))}
-            </View>
 
-            <View style={styles.alertRow}>
-                <Text style={styles.alertText}>Get alert for this task</Text>
-                <Switch value={alertEnabled} onValueChange={setAlertEnabled} thumbColor="#a78bfa" />
-            </View>
+                    <Text style={styles.title}>Create New Task</Text>
 
-            <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
-                <Text style={styles.createText}>Create Task</Text>
-            </TouchableOpacity>
-        </ScrollView>
+                    {/* 날짜 선택 */}
+                    <CalendarView selected={selectedDate} onDateSelect={setSelectedDate} />
+
+                    {/* 입력 */}
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Task Name"
+                        placeholderTextColor="#888"
+                        value={name}
+                        onChangeText={setName}
+                    />
+                    <TextInput
+                        style={[styles.input, { height: 80 }]}
+                        placeholder="Description"
+                        placeholderTextColor="#888"
+                        value={content}
+                        onChangeText={setContent}
+                        multiline
+                    />
+
+                    {/* 시간 선택 */}
+                    <Text style={styles.label}>Time</Text>
+                    <View style={styles.timeRow}>
+                        <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("start")}>
+                            <Text style={styles.timeLabel}>Start</Text>
+                            <Text style={styles.timeValue}>{formatTime(startTime)}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("end")}>
+                            <Text style={styles.timeLabel}>End</Text>
+                            <Text style={styles.timeValue}>{formatTime(endTime)}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {showPicker && (
+                        <DateTimePicker
+                            value={showPicker === "start" ? startTime : endTime}
+                            mode="time"
+                            display={Platform.OS === "ios" ? "spinner" : "default"}
+                            onChange={onChangeTime}
+                            is24Hour={false}
+                        />
+                    )}
+
+                    {/* 우선순위 */}
+                    <Text style={styles.label}>Priority</Text>
+                    <View style={styles.priorityRow}>
+                        {["High", "Medium", "Low"].map((p) => (
+                            <TouchableOpacity
+                                key={p}
+                                style={[
+                                    styles.priorityBtn,
+                                    priority === p && { backgroundColor: getPriorityColor(p) },
+                                ]}
+                                onPress={() => setPriority(p)}
+                            >
+                                <Text style={styles.priorityText}>{p}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* 알림 */}
+                    <View style={styles.alertRow}>
+                        <Text style={styles.alertText}>Alert</Text>
+                        <Switch value={alertEnabled} onValueChange={setAlertEnabled} />
+                    </View>
+
+                    {/*버튼 */}
+                    <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
+                        <Text style={styles.createText}>Create Task</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 
-const getPriorityStyle = (p: Priority): ViewStyle => ({
-    backgroundColor: p === "High" ? "#f87171" : p === "Medium" ? "#a78bfa" : "#4ade80",
-    borderColor: "transparent",
-});
+const getPriorityColor = (p: string) =>
+    p === "High" ? "#f87171" : p === "Medium" ? "#a78bfa" : "#4ade80";
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000", padding: 20 },
-    back: { color: "#fff", fontSize: 24, marginBottom: 10 },
-    title: { color: "#fff", fontSize: 22, fontWeight: "bold", marginBottom: 10 },
-
-    sectionTitle: { color: "#fff", fontSize: 18, marginTop: 20, marginBottom: 8 },
-
+    back: { color: "#fff", fontSize: 22 },
+    title: { color: "#fff", fontSize: 24, fontWeight: "bold", marginVertical: 10 },
     input: {
         backgroundColor: "#16161a",
-        borderRadius: 10,
         color: "#fff",
+        borderRadius: 10,
         padding: 12,
-        marginBottom: 10,
+        marginVertical: 6,
     },
-
-    // --- Time row ---
-    timeRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        gap: 12,
-        marginTop: 4,
-    },
+    label: { color: "#fff", fontSize: 16, marginTop: 12 },
+    timeRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: 10 },
     timeBox: {
         flex: 1,
         backgroundColor: "#16161a",
-        borderRadius: 10,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-    },
-    timeLabel: { color: "#ccc", marginBottom: 6, fontSize: 12 },
-    timeValue: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 16,
-        textAlign: "left",
-    },
-
-    // --- Priority ---
-    priorityRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 10,
-        marginTop: 8,
-    },
-    priorityButton: {
-        flex: 1,
-        paddingVertical: 10,
         borderRadius: 8,
+        padding: 12,
+        marginHorizontal: 4,
+    },
+    timeLabel: { color: "#aaa", fontSize: 12 },
+    timeValue: { color: "#fff", fontSize: 16, fontWeight: "600" },
+    priorityRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: 10 },
+    priorityBtn: {
+        flex: 1,
         borderWidth: 1,
         borderColor: "#555",
+        borderRadius: 8,
+        alignItems: "center",
         marginHorizontal: 4,
-        alignItems: "center",
+        padding: 10,
     },
-    priorityText: { color: "#ccc" },
-    priorityTextActive: { color: "#fff", fontWeight: "bold" },
-
-    // --- Alert toggle ---
-    alertRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginTop: 10,
-    },
+    priorityText: { color: "#fff" },
+    alertRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     alertText: { color: "#fff", fontSize: 16 },
-
-    // --- Create button ---
     createBtn: {
         marginTop: 30,
         backgroundColor: "#a78bfa",
         borderRadius: 10,
-        paddingVertical: 15,
+        paddingVertical: 16,
         alignItems: "center",
     },
     createText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
