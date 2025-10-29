@@ -24,7 +24,7 @@ export default function LoginScreen() {
             return;
         }
 
-        // ✅ 저장된 유저 불러오기
+        // 저장된 유저 불러오기
         const saved = await AsyncStorage.getItem("user");
         if (!saved) {
             Alert.alert("로그인 실패", "등록된 계정이 없습니다. 회원가입을 먼저 해주세요.");

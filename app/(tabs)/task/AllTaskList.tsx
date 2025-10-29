@@ -105,12 +105,12 @@ export default function AllTaskListScreen() {
                     description={`${doneCount}/${totalTasks} Task Completed\nKeep going!`}
                 />
 
-                <Text style={styles.sectionTitle}>Today's Tasks</Text>
+                <Text style={styles.sectionTitle}>Today&#39;s Tasks</Text>
                 {todayTasks.length === 0
                     ? <Text style={styles.emptyText}>No tasks for today.</Text>
                     : todayTasks.map(renderTaskCard)}
 
-                <Text style={styles.sectionTitle}>Tomorrow's Tasks</Text>
+                <Text style={styles.sectionTitle}>Tomorrow&#39;s Tasks</Text>
                 {tomorrowTasks.length === 0
                     ? <Text style={styles.emptyText}>No tasks for tomorrow.</Text>
                     : tomorrowTasks.map(renderTaskCard)}
