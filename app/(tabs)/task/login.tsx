@@ -1,4 +1,3 @@
-// app/(tabs)/task/login.tsx
 import React, { useState, useCallback } from "react";
 import {
     View,
@@ -13,10 +12,36 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
+const BASE_URL =
+    Platform.OS === "android"
+        ? "http://10.0.2.2:8080"
+        : "http://localhost:8080";
+
+// 공통 fetch 유틸 (응답 처리 포함)
+async function apiRequest(url: string, options: RequestInit) {
+    const res = await fetch(url, options);
+    const text = await res.text();
+
+    let data: any = {};
+    try {
+        data = JSON.parse(text);
+    } catch {
+        data = { message: text };
+    }
+
+    if (!res.ok) {
+        console.log("API 실패:", res.status, data);
+        throw new Error(data.message || "서버 요청 실패");
+    }
+
+    return data;
+}
+
 export default function LoginScreen() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
 
     const handleLogin = useCallback(async () => {
         if (!email.trim() || !password.trim()) {
@@ -24,19 +49,61 @@ export default function LoginScreen() {
             return;
         }
 
-        // 저장된 유저 불러오기
-        const saved = await AsyncStorage.getItem("user");
-        if (!saved) {
-            Alert.alert("로그인 실패", "등록된 계정이 없습니다. 회원가입을 먼저 해주세요.");
-            return;
-        }
+        try {
+            setLoading(true);
 
-        const user = JSON.parse(saved);
-        if (user.email === email && user.password === password) {
-            Alert.alert("로그인 성공", `환영합니다, ${user.nickname || user.email}님!`);
-            router.replace("/(tabs)/home"); // ✅ 홈으로 이동
-        } else {
-            Alert.alert("로그인 실패", "이메일 또는 비밀번호가 올바르지 않습니다.");
+            // 로그인 요청
+            const loginData = await apiRequest(`${BASE_URL}/oauth/signin`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
+            });
+
+            console.log("로그인 응답:", loginData);
+
+            // 토큰 추출
+            const token =
+                loginData.data?.accessToken ||
+                loginData.accessToken ||
+                loginData.token ||
+                null;
+            const refresh =
+                loginData.data?.refreshToken ||
+                loginData.refreshToken ||
+                null;
+
+            if (!token) throw new Error("서버에서 accessToken을 받지 못했습니다.");
+
+            // 토큰 저장
+            await AsyncStorage.multiSet([
+                ["accessToken", token],
+                ["refreshToken", refresh ?? ""],
+            ]);
+
+            // 프로필 요청
+            const profile = await apiRequest(`${BASE_URL}/profile`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            console.log("프로필:", profile);
+
+            // 로컬 저장
+            await AsyncStorage.setItem("user", JSON.stringify(profile));
+
+            // 알림
+            const name = profile.nickname || profile.username || email;
+            Alert.alert("로그인 성공", `어서오세요! ${name}님!`);
+
+            router.replace("/(tabs)/home");
+        } catch (err: any) {
+            console.error("로그인 실패:", err);
+            Alert.alert("로그인 실패", err.message || "서버 오류가 발생했습니다.");
+        } finally {
+            setLoading(false);
         }
     }, [email, password]);
 
@@ -76,11 +143,13 @@ export default function LoginScreen() {
                 />
 
                 <TouchableOpacity
-                    style={[styles.button, !email || !password ? styles.buttonDisabled : null]}
+                    style={[styles.button, loading && styles.buttonDisabled]}
                     onPress={handleLogin}
-                    disabled={!email || !password}
+                    disabled={loading}
                 >
-                    <Text style={styles.buttonText}>Login</Text>
+                    <Text style={styles.buttonText}>
+                        {loading ? "Loading..." : "Login"}
+                    </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>

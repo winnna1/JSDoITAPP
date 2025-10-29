@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from "react";
 import {
     View,
@@ -11,8 +10,32 @@ import {
     Platform,
     ScrollView,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+
+const BASE_URL =
+    Platform.OS === "android"
+        ? "http://10.0.2.2:8080" // Android 에뮬레이터용 로컬호스트
+        : "http://localhost:8080"; // iOS 시뮬레이터용
+
+// 공통 API 유틸
+async function apiRequest(url: string, options: RequestInit) {
+    const res = await fetch(url, options);
+    const text = await res.text();
+
+    let data: any = {};
+    try {
+        data = JSON.parse(text);
+    } catch {
+        data = { message: text };
+    }
+
+    if (!res.ok) {
+        console.log("API 실패:", res.status, data);
+        throw new Error(data.message || "서버 요청 실패");
+    }
+
+    return data;
+}
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -24,19 +47,48 @@ export default function SignupScreen() {
     const [phone, setPhone] = useState("");
     const [bio, setBio] = useState("");
     const [location, setLocation] = useState("");
+    const [loading, setLoading] = useState(false);
 
-    // ✅ 회원가입 처리
+    //회원가입 처리
     const handleRegister = useCallback(async () => {
         if (!email || !password || !nickname || !username) {
             Alert.alert("입력 오류", "필수 항목(이메일, 비밀번호, 닉네임, 이름)을 입력해주세요.");
             return;
         }
 
-        const newUser = { email, password, nickname, username, phone, bio, location };
-        await AsyncStorage.setItem("user", JSON.stringify(newUser)); // ✅ 임시 저장
+        try {
+            setLoading(true);
 
-        Alert.alert("회원가입 완료", `${nickname}님, 환영합니다!`);
-        router.replace("/(tabs)/task/login"); // ✅ 로그인 화면으로 이동
+            const newUser = {
+                email,
+                password,
+                nickname,
+                username,
+                phone,
+                bio,
+                location,
+            };
+
+            console.log("회원가입 요청:", newUser);
+
+            const response = await apiRequest(`${BASE_URL}/oauth/signup`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json; charset=utf-8", // 한글 깨짐 방지
+                },
+                body: JSON.stringify(newUser),
+            });
+
+            console.log("서버 응답:", response);
+
+            Alert.alert("회원가입 완료", `${username}님, 환영합니다!`);
+            router.replace("/(tabs)/task/login");
+        } catch (error: any) {
+            console.error("회원가입 실패:", error);
+            Alert.alert("회원가입 실패", error.message || "서버 오류가 발생했습니다.");
+        } finally {
+            setLoading(false);
+        }
     }, [email, password, nickname, username, phone, bio, location]);
 
     return (
@@ -48,87 +100,96 @@ export default function SignupScreen() {
                 <TouchableOpacity onPress={() => router.back()}>
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerText}>Sign Up</Text>
+                <Text style={styles.headerText}>회원가입</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.form}>
-                    <Text style={styles.label}>Email *</Text>
+                    <Text style={styles.label}>이메일 *</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter your email"
+                        placeholder="이메일을 입력하세요"
                         placeholderTextColor="#888"
                         keyboardType="email-address"
                         value={email}
                         onChangeText={setEmail}
+                        autoCapitalize="none"
                     />
 
-                    <Text style={styles.label}>Password *</Text>
+                    <Text style={styles.label}>비밀번호 *</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter your password"
+                        placeholder="비밀번호를 입력하세요"
                         placeholderTextColor="#888"
                         secureTextEntry
                         value={password}
                         onChangeText={setPassword}
+                        keyboardType="default" // ✅ 한글 입력 가능
                     />
 
-                    <Text style={styles.label}>Nickname *</Text>
+                    <Text style={styles.label}>닉네임 *</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter your nickname"
+                        placeholder="닉네임을 입력하세요"
                         placeholderTextColor="#888"
                         value={nickname}
                         onChangeText={setNickname}
+                        keyboardType="default" // 한글 입력 가능
                     />
 
-                    <Text style={styles.label}>Username *</Text>
+                    <Text style={styles.label}>이름 *</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter your name"
+                        placeholder="이름을 입력하세요"
                         placeholderTextColor="#888"
                         value={username}
                         onChangeText={setUsername}
+                        keyboardType="default" // 한글 입력 가능
                     />
 
-                    <Text style={styles.label}>Phone</Text>
+                    <Text style={styles.label}>전화번호</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter your phone number"
+                        placeholder="전화번호를 입력하세요"
                         placeholderTextColor="#888"
                         keyboardType="phone-pad"
                         value={phone}
                         onChangeText={setPhone}
                     />
 
-                    <Text style={styles.label}>Bio</Text>
+                    <Text style={styles.label}>소개</Text>
                     <TextInput
                         style={[styles.input, styles.multiline]}
-                        placeholder="Tell us about yourself"
+                        placeholder="자기소개를 입력하세요"
                         placeholderTextColor="#888"
                         value={bio}
                         onChangeText={setBio}
                         multiline
+                        keyboardType="default" // 한글 입력 가능
                     />
 
-                    <Text style={styles.label}>Location</Text>
+                    <Text style={styles.label}>위치</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter your location"
+                        placeholder="위치를 입력하세요"
                         placeholderTextColor="#888"
                         value={location}
                         onChangeText={setLocation}
+                        keyboardType="default" // 한글 입력 가능
                     />
 
                     <TouchableOpacity
                         style={[
                             styles.button,
-                            !email || !password || !nickname || !username ? styles.buttonDisabled : null,
+                            (!email || !password || !nickname || !username || loading) &&
+                            styles.buttonDisabled,
                         ]}
                         onPress={handleRegister}
-                        disabled={!email || !password || !nickname || !username}
+                        disabled={!email || !password || !nickname || !username || loading}
                     >
-                        <Text style={styles.buttonText}>Sign Up</Text>
+                        <Text style={styles.buttonText}>
+                            {loading ? "처리 중..." : "회원가입"}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
