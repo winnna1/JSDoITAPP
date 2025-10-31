@@ -20,7 +20,7 @@ import { useRouter } from "expo-router";
 const BASE_URL =
     Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
 
-// ✅ 공통 API 유틸
+// 공통 API 유틸
 async function apiRequest(url: string, options: RequestInit) {
     const res = await fetch(url, options);
     const text = await res.text();
@@ -111,7 +111,7 @@ export default function ProfileScreen() {
             formData.append("bio", user.bio || "");
             formData.append("location", user.location || "");
 
-            // ✅ 새 사진이 선택되었다면 추가
+            // 새 사진이 선택되었다면 추가
             if (image && image !== `${BASE_URL}${user.imageUrl}`) {
                 const filename = image.split("/").pop()!;
                 const match = /\.(\w+)$/.exec(filename);
