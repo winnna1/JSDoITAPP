@@ -13,13 +13,20 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 const BASE_URL =
-    Platform.OS === "android"
-        ? "http://10.0.2.2:8080"
-        : "http://localhost:8080";
+    Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
 
-// 공통 fetch 유틸 (응답 처리 포함)
-async function apiRequest(url: string, options: RequestInit) {
-    const res = await fetch(url, options);
+/** 공통 fetch 유틸 */
+async function apiRequest(url: string, options: RequestInit, router?: any) {
+    const token = await AsyncStorage.getItem("accessToken");
+
+    // JWT 토큰 자동 포함
+    const headers = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+    };
+
+    const res = await fetch(url, { ...options, headers });
     const text = await res.text();
 
     let data: any = {};
@@ -27,6 +34,21 @@ async function apiRequest(url: string, options: RequestInit) {
         data = JSON.parse(text);
     } catch {
         data = { message: text };
+    }
+
+    // 401 또는 403 ⇒ 자동 로그아웃 처리
+    if (res.status === 401 || res.status === 403) {
+        console.warn("JWT 인증 실패 → 자동 로그아웃");
+
+        // 저장된 토큰 삭제
+        await AsyncStorage.multiRemove(["accessToken", "refreshToken"]);
+
+        // 로그인 화면으로 이동
+        if (router) {
+            router.replace("/(tabs)/task/login"); // 경로에 맞게 수정
+        }
+
+        throw new Error("인증이 만료되었습니다. 다시 로그인해주세요.");
     }
 
     if (!res.ok) {
@@ -44,7 +66,10 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
 
     const handleLogin = useCallback(async () => {
-        if (!email.trim() || !password.trim()) {
+        const emailTrim = email.trim();
+        const passwordTrim = password.trim();
+
+        if (!emailTrim || !passwordTrim) {
             Alert.alert("로그인 실패", "이메일과 비밀번호를 모두 입력해주세요.");
             return;
         }
@@ -61,20 +86,16 @@ export default function LoginScreen() {
 
             console.log("로그인 응답:", loginData);
 
-            // 토큰 추출
             const token =
                 loginData.data?.accessToken ||
                 loginData.accessToken ||
                 loginData.token ||
                 null;
             const refresh =
-                loginData.data?.refreshToken ||
-                loginData.refreshToken ||
-                null;
+                loginData.data?.refreshToken || loginData.refreshToken || null;
 
             if (!token) throw new Error("서버에서 accessToken을 받지 못했습니다.");
 
-            // 토큰 저장
             await AsyncStorage.multiSet([
                 ["accessToken", token],
                 ["refreshToken", refresh ?? ""],
@@ -143,7 +164,12 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0b0b0f", padding: 20, justifyContent: "center" },
+    container: {
+        flex: 1,
+        backgroundColor: "#0b0b0f",
+        padding: 20,
+        justifyContent: "center",
+    },
     header: { alignItems: "center", marginBottom: 30 },
     headerText: { color: "#fff", fontSize: 26, fontWeight: "bold" },
     form: { backgroundColor: "#16161a", borderRadius: 16, padding: 20 },
