@@ -25,7 +25,7 @@ export default function HomeScreen() {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [profileImage, setProfileImage] = useState<string | null>(null);
 
-    // ✅ 프로필 이미지 로드
+    // 프로필 이미지 로드
     useEffect(() => {
         const loadProfileImage = async () => {
             try {
@@ -41,12 +41,12 @@ export default function HomeScreen() {
         loadProfileImage();
     }, []);
 
-    // ✅ 일정 및 날짜 로드
+    // 일정 및 날짜 로드
     useFocusEffect(
         React.useCallback(() => {
             // 홈 화면이 다시 포커스될 때마다
             reloadTasks();
-            setSelectedDate(new Date()); // 👉 현재 날짜로 리셋
+            setSelectedDate(new Date()); // 현재 날짜로 리셋
         }, [reloadTasks])
     );
 
@@ -93,14 +93,14 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* 🔹 달력 */}
+                {/* 달력 */}
                 <CalendarView
                     selected={selectedDate}
-                    onDateSelect={(date) => setSelectedDate(date)} // 👉 클릭한 날짜 반영
+                    onDateSelect={(date) => setSelectedDate(date)} // 클릭한 날짜 반영
                     markers={markers}
                 />
 
-                {/* 🔹 일정 섹션 */}
+                {/* 일정 섹션 */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>
                         {dayKey} 일정 ({dayTasks.length})
@@ -142,7 +142,7 @@ export default function HomeScreen() {
                     )}
                 </View>
 
-                {/* 🔹 Progress */}
+                {/* Progress */}
                 <View style={styles.progressHeader}>
                     <Text style={styles.sectionTitle}>Progress</Text>
                     <TouchableOpacity
@@ -179,7 +179,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#0b0b0f", padding: 20 },
 
-    // 🔹 상단 헤더
+    // 상단 헤더
     topHeader: {
         flexDirection: "row",
         justifyContent: "flex-end",
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
         color: "#fff",
     },
 
-    // 🔹 기존 스타일 유지
+    // 기존 스타일 유지
     sectionHeader: {
         marginTop: 16,
         marginBottom: 8,
