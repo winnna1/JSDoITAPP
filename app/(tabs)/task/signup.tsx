@@ -124,7 +124,7 @@ export default function SignupScreen() {
                         secureTextEntry
                         value={password}
                         onChangeText={setPassword}
-                        keyboardType="default" // ✅ 한글 입력 가능
+                        keyboardType="default" // 한글 입력 가능
                     />
 
                     <Text style={styles.label}>닉네임 *</Text>
