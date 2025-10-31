@@ -138,7 +138,7 @@ export default function CreateTaskScreen() {
 
                     {/* 선택된 날짜 표시 */}
                     <Text style={styles.dateDisplay}>
-                        📅 {formatLocalDate(selectedDate)}
+                        {formatLocalDate(selectedDate)}
                     </Text>
 
                     {/* 캘린더 */}
