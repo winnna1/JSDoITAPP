@@ -40,7 +40,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [token, setToken] = useState<string | null>(null);
 
-    // 🪄 accessToken 주기적으로 확인
+    // accessToken 주기적으로 확인
     useEffect(() => {
         const checkStoredToken = async () => {
             const stored = await AsyncStorage.getItem("accessToken");
@@ -125,7 +125,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             if (!res.ok) throw new Error("삭제 실패");
 
             await reloadTasks();
-            console.log(`🗑️ Task(${id}) 삭제 완료`);
+            console.log(`Task(${id}) 삭제 완료`);
         } catch (err: any) {
             console.error("deleteTask error:", err);
             Alert.alert("삭제 실패", err.message || "Task 삭제 중 오류 발생");
@@ -172,7 +172,7 @@ export const useTasks = () => {
     return ctx;
 };
 
-// 날짜 포맷 (YYYY-MM-DD)
+// 날짜 포맷
 export function toKey(d: Date) {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, "0");
