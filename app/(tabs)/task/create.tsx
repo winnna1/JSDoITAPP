@@ -74,7 +74,7 @@ export default function CreateTaskScreen() {
         }
     };
 
-    // ✅ 한국 시간 기준으로 날짜 포맷팅
+    // 한국 시간 기준으로 날짜 포맷팅
     const formatLocalDate = (date: Date) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, "0");
