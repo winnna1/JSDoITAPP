@@ -75,7 +75,7 @@ export default function HomeScreen() {
     return (
         <View style={styles.container}>
             <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* 🔹 상단 헤더: 선택된 날짜 + 프로필 이미지 */}
+                {/* 상단 헤더: 선택된 날짜 + 프로필 이미지 */}
                 <View style={styles.topHeader}>
                     <Text style={styles.dateText}>
                         {`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`}
@@ -194,13 +194,14 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 50,
+        marginRight: 20,
         borderWidth: 2,
         borderColor: "#a78bfa",
     },
     dateText: {
         flex: 1,
         textAlign: "center",
-        marginRight: -50,
+        marginRight: -70,
         fontSize: 25,
         fontWeight: "bold",
         color: "#fff",

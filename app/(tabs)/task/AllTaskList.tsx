@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
     View,
     Text,
@@ -28,17 +28,15 @@ export default function AllTaskListScreen() {
             const token = await AsyncStorage.getItem("accessToken");
             if (!token) return;
 
-            // AsyncStorage에 캐시된 user 있으면 먼저 사용
             const cached = await AsyncStorage.getItem("user");
             if (cached) {
                 const parsed = JSON.parse(cached);
                 if (parsed.imageUrl) {
                     setUserImage(`${BASE_URL}${parsed.imageUrl}`);
-                    return; // 바로 종료 (빠른 로딩)
+                    return;
                 }
             }
 
-            // 없으면 서버에서 직접 요청
             const res = await fetch(`${BASE_URL}/profile`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -78,25 +76,60 @@ export default function AllTaskListScreen() {
         };
 
         loadTasks();
-        loadUserProfile(); // 프로필도 함께 불러옴
+        loadUserProfile();
     }, []);
 
-    // 한국 시간 기준으로 날짜 계산
+    // ✅ Task 완료 상태 토글 (checkmark 클릭 시)
+    const toggleDone = async (id: string) => {
+        try {
+            setTasks((prev) =>
+                prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+            );
+
+            const token = await AsyncStorage.getItem("accessToken");
+            if (!token) return;
+
+            // 서버에 즉시 반영
+            const task = tasks.find((t) => t.id === id);
+            const updated = { ...task, done: !task?.done };
+
+            await fetch(`${BASE_URL}/api/v1/task/${id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(updated),
+            });
+        } catch (err) {
+            console.error("완료 상태 변경 실패:", err);
+            Alert.alert("오류", "Task 완료 상태 변경 실패");
+        }
+    };
+
+    // 날짜 계산
     const getLocalDate = (offsetDays = 0) => {
         const date = new Date();
         date.setDate(date.getDate() + offsetDays);
-        return date.toLocaleDateString("sv-SE"); // "YYYY-MM-DD" 형식
+        return date.toLocaleDateString("sv-SE");
     };
 
     const today = getLocalDate(0);
     const tomorrow = getLocalDate(1);
 
-
     const todayTasks = tasks.filter((t) => t.date === today);
     const tomorrowTasks = tasks.filter((t) => t.date === tomorrow);
-    const totalTasks = todayTasks.length + tomorrowTasks.length;
-    const doneCount = tasks.filter((t) => t.done).length;
-    const progress = totalTasks ? doneCount / totalTasks : 0;
+
+    // ✅ ProgressBar 계산 (checkmark 변경 시 자동 반영)
+    const { totalTasks, doneCount, progress } = useMemo(() => {
+        const total = todayTasks.length + tomorrowTasks.length;
+        const done = tasks.filter((t) => t.done).length;
+        return {
+            totalTasks: total,
+            doneCount: done,
+            progress: total ? done / total : 0,
+        };
+    }, [tasks]);
 
     const handleProfile = () => router.push("/(tabs)/task/profile");
 
@@ -111,7 +144,6 @@ export default function AllTaskListScreen() {
                     You have {totalTasks} tasks{"\n"}to complete
                 </Text>
 
-                {/* 프로필 사진 */}
                 <TouchableOpacity onPress={handleProfile}>
                     {userImage ? (
                         <Image source={{ uri: userImage }} style={styles.avatar} />
@@ -137,7 +169,8 @@ export default function AllTaskListScreen() {
                         <TouchableOpacity
                             key={t.id}
                             style={styles.taskCard}
-                            onPress={() =>
+                            onPress={() => toggleDone(t.id)}
+                            onLongPress={() =>
                                 router.push({ pathname: "/(tabs)/task/edit", params: { id: t.id } })
                             }
                         >
@@ -164,7 +197,8 @@ export default function AllTaskListScreen() {
                         <TouchableOpacity
                             key={t.id}
                             style={styles.taskCard}
-                            onPress={() =>
+                            onPress={() => toggleDone(t.id)}
+                            onLongPress={() =>
                                 router.push({ pathname: "/(tabs)/task/edit", params: { id: t.id } })
                             }
                         >

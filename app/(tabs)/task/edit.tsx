@@ -32,7 +32,7 @@ export default function EditTaskScreen() {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [name, setName] = useState(task.title);
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [desc, setContent] = useState(task.content ?? "");
+    const [content, setContent] = useState(task.content ?? "");
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [priority, setPriority] = useState<Priority>(task.priority as Priority);
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -79,7 +79,7 @@ export default function EditTaskScreen() {
         }
         updateTask(task.id, {
             title: name,
-            desc,
+            content: content,
             date: toKey(selectedDate),
             priority,
             alertEnabled,
@@ -113,7 +113,7 @@ export default function EditTaskScreen() {
                 placeholder="Description"
                 placeholderTextColor="#888"
                 multiline
-                value={desc}
+                value={content}
                 onChangeText={setContent}
             />
 

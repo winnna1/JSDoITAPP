@@ -7,14 +7,12 @@ import React, {
     useState,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import type { Priority } from "../components/CalendarView";
 
-// 서버 주소 설정
 const BASE_URL =
     Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
 
-// Task 타입 정의
 export type Task = {
     id: string;
     title: string;
@@ -32,19 +30,17 @@ type TasksContextType = {
     tasksByDate: Record<string, Task[]>;
     reloadTasks: () => Promise<void>;
     getTaskById: (id: string) => Task | undefined;
+    updateTask: (id: string, data: Partial<Task>) => Promise<void>;
+    deleteTask: (id: string) => Promise<void>;
 };
 
-// Context 생성
 const TasksCtx = createContext<TasksContextType | null>(null);
 
 export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [token, setToken] = useState<string | null>(null);
 
-    /**
-     * 로그인 후 AsyncStorage에 저장된 accessToken을 주기적으로 확인
-     * (단, 삭제하거나 체크 API를 호출하지 않음)
-     */
+    // 🪄 accessToken 주기적으로 확인
     useEffect(() => {
         const checkStoredToken = async () => {
             const stored = await AsyncStorage.getItem("accessToken");
@@ -55,15 +51,11 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         };
         checkStoredToken();
 
-        // 5초마다 최신 토큰 동기화 (로그아웃 시 반영)
         const interval = setInterval(checkStoredToken, 5000);
         return () => clearInterval(interval);
     }, [token]);
 
-    /**
-     * Task 목록 로드
-     * 로그인 후 토큰이 존재할 때만 실행됨
-     */
+    // Task 목록 재로딩
     const reloadTasks = useCallback(async () => {
         const currentToken = await AsyncStorage.getItem("accessToken");
         if (!currentToken) {
@@ -72,7 +64,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         try {
-            // 모든 날짜 Task 조회
             const res = await fetch(`${BASE_URL}/api/v1/task/day/tasks`, {
                 headers: { Authorization: `Bearer ${currentToken}` },
             });
@@ -92,37 +83,84 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, []);
 
+    // Task 수정
+    const updateTask = useCallback(async (id: string, data: Partial<Task>) => {
+        try {
+            const currentToken = await AsyncStorage.getItem("accessToken");
+            if (!currentToken) throw new Error("토큰 없음");
 
-    /**
-     * 토큰이 생겼을 때 자동으로 Task 로드
-     */
+            const res = await fetch(`${BASE_URL}/api/v1/task/${id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${currentToken}`,
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!res.ok) {
+                const msg = await res.text();
+                throw new Error(`수정 실패 (${res.status}): ${msg}`);
+            }
+
+            await reloadTasks();
+            console.log(`Task(${id}) 업데이트 성공`);
+        } catch (err: any) {
+            console.error("updateTask error:", err);
+            Alert.alert("업데이트 실패", err.message || "Task 수정 중 오류 발생");
+        }
+    }, [reloadTasks]);
+
+    // Task 삭제
+    const deleteTask = useCallback(async (id: string) => {
+        try {
+            const currentToken = await AsyncStorage.getItem("accessToken");
+            if (!currentToken) throw new Error("토큰 없음");
+
+            const res = await fetch(`${BASE_URL}/api/v1/task/${id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${currentToken}` },
+            });
+
+            if (!res.ok) throw new Error("삭제 실패");
+
+            await reloadTasks();
+            console.log(`🗑️ Task(${id}) 삭제 완료`);
+        } catch (err: any) {
+            console.error("deleteTask error:", err);
+            Alert.alert("삭제 실패", err.message || "Task 삭제 중 오류 발생");
+        }
+    }, [reloadTasks]);
+
+    // 토큰 감지 시 자동 로드
     useEffect(() => {
         if (token) {
             console.log("토큰 감지됨 — Task 로드 시작");
             reloadTasks();
-        } else {
-            console.log("토큰 없음 — 대기 중");
         }
     }, [token, reloadTasks]);
 
-    /**
-     * ID로 Task 찾기
-     */
+    // ID로 Task 찾기
     const getTaskById = (id: string) => tasks.find((t) => t.id === id);
 
-    /**
-     * 날짜별 그룹화
-     */
+    // 날짜별 그룹화
     const tasksByDate = useMemo(() => {
         const grouped: Record<string, Task[]> = {};
-        for (const t of tasks) {
-            (grouped[t.date] ||= []).push(t);
-        }
+        for (const t of tasks) (grouped[t.date] ||= []).push(t);
         return grouped;
     }, [tasks]);
 
     return (
-        <TasksCtx.Provider value={{ tasks, tasksByDate, reloadTasks, getTaskById }}>
+        <TasksCtx.Provider
+            value={{
+                tasks,
+                tasksByDate,
+                reloadTasks,
+                getTaskById,
+                updateTask,
+                deleteTask,
+            }}
+        >
             {children}
         </TasksCtx.Provider>
     );
@@ -134,9 +172,7 @@ export const useTasks = () => {
     return ctx;
 };
 
-/**
- * 로컬 기준 날짜 문자열 반환 (UTC 밀림 방지)
- */
+// 날짜 포맷 (YYYY-MM-DD)
 export function toKey(d: Date) {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, "0");
