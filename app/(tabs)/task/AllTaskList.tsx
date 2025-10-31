@@ -79,7 +79,7 @@ export default function AllTaskListScreen() {
         loadUserProfile();
     }, []);
 
-    // ✅ Task 완료 상태 토글 (checkmark 클릭 시)
+    // Task 완료 상태 토글 (checkmark 클릭 시)
     const toggleDone = async (id: string) => {
         try {
             setTasks((prev) =>
@@ -120,7 +120,7 @@ export default function AllTaskListScreen() {
     const todayTasks = tasks.filter((t) => t.date === today);
     const tomorrowTasks = tasks.filter((t) => t.date === tomorrow);
 
-    // ✅ ProgressBar 계산 (checkmark 변경 시 자동 반영)
+    // ProgressBar 계산 (checkmark 변경 시 자동 반영)
     const { totalTasks, doneCount, progress } = useMemo(() => {
         const total = todayTasks.length + tomorrowTasks.length;
         const done = tasks.filter((t) => t.done).length;
