@@ -17,6 +17,8 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import CalendarView from "../../../components/CalendarView";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// 여기에 알림 기능 구현
+
 const BASE_URL =
     Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
 
