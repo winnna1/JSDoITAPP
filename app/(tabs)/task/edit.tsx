@@ -1,13 +1,24 @@
 // app/(tabs)/task/edit.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-    Switch, Alert, Platform
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    ScrollView,
+    Switch,
+    Alert,
+    Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import CalendarView, { Priority } from "../../../components/CalendarView";
 import { useTasks, toKey } from "@/context/TasksContext";
+import {
+    cancelTaskNotification,
+    scheduleTaskNotification,
+} from "../../../utils/notifications";
 
 export default function EditTaskScreen() {
     const router = useRouter();
@@ -17,7 +28,6 @@ export default function EditTaskScreen() {
 
     const task = useMemo(() => (id ? getTaskById(id) : undefined), [id, getTaskById]);
 
-    // 없으면 뒤로
     useEffect(() => {
         if (!task) {
             Alert.alert("Not found", "Task not found.", [{ text: "OK", onPress: () => router.back() }]);
@@ -38,16 +48,17 @@ export default function EditTaskScreen() {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [alertEnabled, setAlertEnabled] = useState<boolean>(!!task.alertEnabled);
 
-    // 시간 (ISO 저장을 가정)
     const toDateOr = (iso?: string, h = 18, m = 0) => {
         if (iso) return new Date(iso);
-        const d = new Date(); d.setHours(h, m, 0, 0); return d;
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d;
     };
+
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [startTime, setStartTime] = useState<Date>(toDateOr(task.startTime, 18, 0));
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [endTime, setEndTime] = useState<Date>(toDateOr(task.endTime, 21, 0));
-
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [showPicker, setShowPicker] = useState<null | "start" | "end">(null);
 
@@ -60,7 +71,9 @@ export default function EditTaskScreen() {
         if (showPicker === "start") {
             setStartTime(date);
             if (date.getTime() >= endTime.getTime()) {
-                const e = new Date(date); e.setHours(date.getHours() + 1); setEndTime(e);
+                const e = new Date(date);
+                e.setHours(date.getHours() + 1);
+                setEndTime(e);
             }
         } else if (showPicker === "end") {
             setEndTime(date);
@@ -70,23 +83,50 @@ export default function EditTaskScreen() {
         }
     };
 
-    const handleSave = () => {
+    /** 수정 저장 */
+    const handleSave = async () => {
         if (!name.trim()) {
-            Alert.alert("입력 확인", "이름을 입력해 주세요."); return;
+            Alert.alert("입력 확인", "이름을 입력해 주세요.");
+            return;
         }
         if (endTime.getTime() <= startTime.getTime()) {
-            Alert.alert("시간 확인", "End Time은 Start Time 이후여야 합니다."); return;
+            Alert.alert("시간 확인", "End Time은 Start Time 이후여야 합니다.");
+            return;
         }
-        updateTask(task.id, {
-            title: name,
-            content: content,
-            date: toKey(selectedDate),
-            priority,
-            alertEnabled,
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
-        });
-        Alert.alert("Saved", "Task updated.", [{ text: "OK", onPress: () => router.back() }]);
+
+        try {
+            // Task 업데이트
+            updateTask(task.id, {
+                title: name,
+                content: content,
+                date: toKey(selectedDate),
+                priority,
+                alertEnabled,
+                startTime: startTime.toISOString(),
+                endTime: endTime.toISOString(),
+            });
+
+            // 알림 처리
+            if (alertEnabled) {
+                // 새 시간으로 1분 전 예약
+                await scheduleTaskNotification(
+                    {
+                        id: task.id,
+                        title: name,
+                        startTime: startTime.toISOString(),
+                    },
+                    1 // 시작 1분 전
+                );
+            } else {
+                // OFF일 경우 기존 예약 취소
+                await cancelTaskNotification(task.id);
+            }
+
+            Alert.alert("Saved", "Task updated.", [{ text: "OK", onPress: () => router.back() }]);
+        } catch (err) {
+            console.error("Task 저장/알림 오류:", err);
+            Alert.alert("에러", "저장 중 문제가 발생했습니다.");
+        }
     };
 
     return (
