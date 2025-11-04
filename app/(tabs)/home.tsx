@@ -7,6 +7,7 @@ import {
     ScrollView,
     Image,
     Platform,
+    Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -15,41 +16,101 @@ import CalendarView, { Priority } from "../../components/CalendarView";
 import ProgressCard from "../../components/ProgressCard";
 import FloatingButton from "../../components/FloatingButton";
 import { useTasks, toKey } from "../../context/TasksContext";
+import GrassView from "../../components/GrassView";
 
 const BASE_URL =
-    Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
+    Platform.OS === "android"
+        ? "http://192.168.45.191:8080" // 본인 IP
+        : "http://localhost:8080";
 
 export default function HomeScreen() {
     const router = useRouter();
     const { tasksByDate, reloadTasks } = useTasks();
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [profileImage, setProfileImage] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    // 프로필 이미지 로드
+    /**프로필 이미지 최초 로드 */
     useEffect(() => {
         const loadProfileImage = async () => {
             try {
-                const storedUser = await AsyncStorage.getItem("user");
-                if (storedUser) {
-                    const user = JSON.parse(storedUser);
-                    if (user.imageUrl) setProfileImage(`${BASE_URL}${user.imageUrl}`);
+                const token = await AsyncStorage.getItem("accessToken");
+                if (!token) return;
+
+                // 캐시된 user 데이터 확인
+                const cached = await AsyncStorage.getItem("user");
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (parsed.imageUrl) {
+                        const uri = parsed.imageUrl.startsWith("http")
+                            ? parsed.imageUrl
+                            : `${BASE_URL}${parsed.imageUrl}`;
+                        setProfileImage(`${uri}?t=${Date.now()}`); // 캐시 방지
+                        return;
+                    }
                 }
+
+                // 서버에서 최신 프로필 요청
+                const res = await fetch(`${BASE_URL}/profile`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                if (!res.ok) throw new Error("프로필 요청 실패");
+
+                const profile = await res.json();
+                if (profile.imageUrl) {
+                    const uri = profile.imageUrl.startsWith("http")
+                        ? profile.imageUrl
+                        : `${BASE_URL}${profile.imageUrl}`;
+                    setProfileImage(`${uri}?t=${Date.now()}`);
+                }
+
+                // 캐시 저장
+                await AsyncStorage.setItem("user", JSON.stringify(profile));
             } catch (err) {
                 console.error("프로필 이미지 로드 실패:", err);
+                Alert.alert("오류", "프로필 이미지를 불러오지 못했습니다.");
             }
         };
+
         loadProfileImage();
     }, []);
 
-    // 일정 및 날짜 로드
+    /** 화면 포커스 시 Task 및 프로필 갱신 */
     useFocusEffect(
         React.useCallback(() => {
-            // 홈 화면이 다시 포커스될 때마다
             reloadTasks();
-            setSelectedDate(new Date()); // 현재 날짜로 리셋
+            setSelectedDate(new Date());
+            setRefreshKey((prev) => prev + 1);
+
+            const refreshProfile = async () => {
+                try {
+                    const token = await AsyncStorage.getItem("accessToken");
+                    if (!token) return;
+
+                    const res = await fetch(`${BASE_URL}/profile`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+
+                    if (!res.ok) throw new Error("프로필 요청 실패");
+
+                    const profile = await res.json();
+                    const uri = profile.imageUrl.startsWith("http")
+                        ? profile.imageUrl
+                        : `${BASE_URL}${profile.imageUrl}`;
+                    setProfileImage(`${uri}?t=${Date.now()}`); // 새로고침 시 최신 이미지
+
+                    await AsyncStorage.setItem("user", JSON.stringify(profile));
+                } catch (err) {
+                    console.error("프로필 새로고침 실패:", err);
+                }
+            };
+
+            refreshProfile();
         }, [reloadTasks])
     );
 
+    /** Task 데이터 가공 */
     const markers = useMemo<Record<string, Priority[]>>(() => {
         const m: Record<string, Priority[]> = {};
         for (const [dateKey, arr] of Object.entries(tasksByDate)) {
@@ -75,10 +136,15 @@ export default function HomeScreen() {
     return (
         <View style={styles.container}>
             <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* 상단 헤더: 선택된 날짜 + 프로필 이미지 */}
+                {/* 상단 헤더 */}
                 <View style={styles.topHeader}>
                     <Text style={styles.dateText}>
-                        {`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`}
+                        {`${selectedDate.getFullYear()}-${String(
+                            selectedDate.getMonth() + 1
+                        ).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(
+                            2,
+                            "0"
+                        )}`}
                     </Text>
 
                     <TouchableOpacity
@@ -88,7 +154,9 @@ export default function HomeScreen() {
                         {profileImage ? (
                             <Image source={{ uri: profileImage }} style={styles.profileImage} />
                         ) : (
-                            <View style={[styles.profileImage, { backgroundColor: "#444" }]} />
+                            <View
+                                style={[styles.profileImage, { backgroundColor: "#444" }]}
+                            />
                         )}
                     </TouchableOpacity>
                 </View>
@@ -96,11 +164,11 @@ export default function HomeScreen() {
                 {/* 달력 */}
                 <CalendarView
                     selected={selectedDate}
-                    onDateSelect={(date) => setSelectedDate(date)} // 클릭한 날짜 반영
+                    onDateSelect={(date) => setSelectedDate(date)}
                     markers={markers}
                 />
 
-                {/* 일정 섹션 */}
+                {/* 일정 목록 */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>
                         {dayKey} 일정 ({dayTasks.length})
@@ -133,7 +201,17 @@ export default function HomeScreen() {
                                     })
                                 }
                             >
-                                <Text style={styles.taskTitle}>{t.title}</Text>
+                                <Text
+                                    style={[
+                                        styles.taskTitle,
+                                        t.done && {
+                                            textDecorationLine: "line-through",
+                                            color: "#a78bfa",
+                                        },
+                                    ]}
+                                >
+                                    {t.title}
+                                </Text>
                                 <Text style={styles.taskTime}>
                                     {ftime(t.startTime)} ~ {ftime(t.endTime)} ({t.priority})
                                 </Text>
@@ -162,6 +240,9 @@ export default function HomeScreen() {
                     progress={progress}
                     description={`${completed}/${dayTasks.length} Task Completed\nYou are almost done, go ahead!`}
                 />
+
+                {/* 잔디 */}
+                <GrassView key={refreshKey} />
             </ScrollView>
 
             <FloatingButton
@@ -178,8 +259,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#0b0b0f", padding: 20 },
-
-    // 상단 헤더
     topHeader: {
         flexDirection: "row",
         justifyContent: "flex-end",
@@ -195,7 +274,7 @@ const styles = StyleSheet.create({
         height: 60,
         borderRadius: 50,
         marginRight: 20,
-        borderWidth: 2,
+        borderWidth: 2.5,
         borderColor: "#a78bfa",
     },
     dateText: {
@@ -206,8 +285,6 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#fff",
     },
-
-    // 기존 스타일 유지
     sectionHeader: {
         marginTop: 16,
         marginBottom: 8,
