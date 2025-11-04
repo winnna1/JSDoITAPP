@@ -11,7 +11,7 @@ import { Platform, Alert } from "react-native";
 import type { Priority } from "../components/CalendarView";
 
 const BASE_URL =
-    Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
+    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
 
 export type Task = {
     id: string;
