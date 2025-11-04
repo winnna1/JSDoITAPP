@@ -12,29 +12,26 @@ import {
     KeyboardAvoidingView,
     SafeAreaView,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router"; // 추가됨
+import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import CalendarView from "../../../components/CalendarView";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { scheduleTaskNotification } from "../../../utils/notifications";
 
 const BASE_URL =
-    Platform.OS === "android" ? "http://10.0.2.2:8080" : "http://localhost:8080";
+    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
 
 export default function CreateTaskScreen() {
     const router = useRouter();
-    const { date } = useLocalSearchParams(); // 전달받은 날짜
+    const { date } = useLocalSearchParams();
 
-    // 전달받은 date가 있으면 그걸 초기값으로, 없으면 오늘
-    const [selectedDate, setSelectedDate] = useState(() => {
-        if (date) return new Date(date as string);
-        return new Date();
-    });
-
+    const [selectedDate, setSelectedDate] = useState(
+        date ? new Date(date as string) : new Date()
+    );
     const [name, setName] = useState("");
     const [content, setContent] = useState("");
     const [priority, setPriority] = useState("Medium");
     const [alertEnabled, setAlertEnabled] = useState(false);
-
     const [startTime, setStartTime] = useState<Date>(() => {
         const d = new Date();
         d.setHours(18, 0, 0, 0);
@@ -45,9 +42,9 @@ export default function CreateTaskScreen() {
         d.setHours(21, 0, 0, 0);
         return d;
     });
-
     const [showPicker, setShowPicker] = useState<null | "start" | "end">(null);
 
+    /** 시간 포맷 */
     const formatTime = (d: Date) =>
         d.toLocaleTimeString(undefined, {
             hour: "2-digit",
@@ -55,6 +52,7 @@ export default function CreateTaskScreen() {
             hour12: true,
         });
 
+    /** TimePicker 변경 */
     const onChangeTime = (_e: DateTimePickerEvent, date?: Date) => {
         if (Platform.OS === "android") setShowPicker(null);
         if (!date) return;
@@ -74,26 +72,26 @@ export default function CreateTaskScreen() {
         }
     };
 
-    // 한국 시간 기준으로 날짜 포맷팅
+    /** YYYY-MM-DD 포맷 */
     const formatLocalDate = (date: Date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
     };
 
+    /** Task 생성 */
     const handleCreate = async () => {
-        if (!name.trim()) return Alert.alert("입력 오류", "이름을 입력하세요.");
+        if (!name.trim()) return Alert.alert("입력 오류", "Task 이름을 입력하세요.");
 
         const token = await AsyncStorage.getItem("accessToken");
         if (!token) return Alert.alert("로그인 필요", "로그인 후 이용하세요.");
 
         const newTask = {
             title: name,
-            content: content,
-            date: formatLocalDate(selectedDate), // 클릭한 날짜 그대로 저장
+            content,
+            date: formatLocalDate(selectedDate),
             priority,
-            alertEnabled,
             startTime: startTime.toISOString(),
             endTime: endTime.toISOString(),
         };
@@ -109,9 +107,15 @@ export default function CreateTaskScreen() {
             });
 
             if (!res.ok) throw new Error("작업 생성 실패");
+            const createdTask = await res.json();
+
+            // 알림 설정 ON이면 예약
+            if (alertEnabled) {
+                await scheduleTaskNotification(createdTask);
+            }
 
             Alert.alert("Task Created!", `"${name}"이 추가되었습니다.`, [
-                { text: "OK", onPress: () => router.back() },
+                { text: "OK", onPress: () => router.replace("/(tabs)/home") },
             ]);
         } catch (err) {
             console.error("Task 생성 오류:", err);
@@ -135,16 +139,10 @@ export default function CreateTaskScreen() {
                     </TouchableOpacity>
 
                     <Text style={styles.title}>Create New Task</Text>
+                    <Text style={styles.dateDisplay}>{formatLocalDate(selectedDate)}</Text>
 
-                    {/* 선택된 날짜 표시 */}
-                    <Text style={styles.dateDisplay}>
-                        {formatLocalDate(selectedDate)}
-                    </Text>
-
-                    {/* 캘린더 */}
                     <CalendarView selected={selectedDate} onDateSelect={setSelectedDate} />
 
-                    {/* 입력 */}
                     <TextInput
                         style={styles.input}
                         placeholder="Task Name"
@@ -161,7 +159,6 @@ export default function CreateTaskScreen() {
                         multiline
                     />
 
-                    {/* 시간 선택 */}
                     <Text style={styles.label}>Time</Text>
                     <View style={styles.timeRow}>
                         <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("start")}>
@@ -184,7 +181,6 @@ export default function CreateTaskScreen() {
                         />
                     )}
 
-                    {/* 우선순위 */}
                     <Text style={styles.label}>Priority</Text>
                     <View style={styles.priorityRow}>
                         {["High", "Medium", "Low"].map((p) => (
@@ -201,13 +197,11 @@ export default function CreateTaskScreen() {
                         ))}
                     </View>
 
-                    {/* 알림 */}
                     <View style={styles.alertRow}>
                         <Text style={styles.alertText}>Alert</Text>
                         <Switch value={alertEnabled} onValueChange={setAlertEnabled} />
                     </View>
 
-                    {/* 버튼 */}
                     <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
                         <Text style={styles.createText}>Create Task</Text>
                     </TouchableOpacity>
