@@ -17,9 +17,7 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import CalendarView from "../../../components/CalendarView";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { scheduleTaskNotification } from "../../../utils/notifications";
-
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
+import { BASE_URL } from "../../../config/config";
 
 export default function CreateTaskScreen() {
     const router = useRouter();

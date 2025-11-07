@@ -11,9 +11,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
+import { BASE_URL } from "../../../config/config";
 
 /** 공통 fetch 유틸 */
 async function apiRequest(url: string, options: RequestInit, router?: any) {

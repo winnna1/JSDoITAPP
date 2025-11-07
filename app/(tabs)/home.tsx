@@ -17,11 +17,7 @@ import ProgressCard from "../../components/ProgressCard";
 import FloatingButton from "../../components/FloatingButton";
 import { useTasks, toKey } from "../../context/TasksContext";
 import GrassView from "../../components/GrassView";
-
-const BASE_URL =
-    Platform.OS === "android"
-        ? "http://192.168.45.191:8080" // 본인 IP
-        : "http://localhost:8080";
+import { BASE_URL } from "../../config/config"
 
 export default function HomeScreen() {
     const router = useRouter();

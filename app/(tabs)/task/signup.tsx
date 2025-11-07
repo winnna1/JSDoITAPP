@@ -11,11 +11,7 @@ import {
     ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-
-const BASE_URL =
-    Platform.OS === "android"
-        ? "http://192.168.45.191:8080" // Android 에뮬레이터용 로컬호스트
-        : "http://localhost:8080"; // iOS 시뮬레이터용
+import { BASE_URL } from "../../../config/config";
 
 // 공통 API 유틸
 async function apiRequest(url: string, options: RequestInit) {

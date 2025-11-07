@@ -5,7 +5,6 @@ import {
     StyleSheet,
     TouchableOpacity,
     ScrollView,
-    Platform,
     Alert,
     Image,
     ActivityIndicator,
@@ -14,9 +13,7 @@ import {
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ProgressCard from "@/components/ProgressCard";
-
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
+import { BASE_URL } from "../../../config/config";
 
 export default function AllTaskListScreen() {
     const router = useRouter();
