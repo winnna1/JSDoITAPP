@@ -1,4 +1,3 @@
-// app/(tabs)/task/profile.tsx
 import React, { useEffect, useState, useCallback } from "react";
 import {
     View,
@@ -9,31 +8,13 @@ import {
     Image,
     Alert,
     ActivityIndicator,
-    Platform,
     ScrollView,
     Pressable,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
-
-// 공통 API 유틸
-async function apiRequest(url: string, options: RequestInit) {
-    const res = await fetch(url, options);
-    const text = await res.text();
-    let data: any = {};
-    try {
-        data = JSON.parse(text);
-    } catch {
-        data = { message: text };
-    }
-
-    if (!res.ok) throw new Error(data.message || "요청 실패");
-    return data;
-}
+import { apiGetAuth, apiUploadAuth, imgUrl } from "../../../lib/api"; // 공통 유틸 사용
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -42,32 +23,18 @@ export default function ProfileScreen() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    // 프로필 불러오기
+    /** 프로필 불러오기 */
     const fetchProfile = useCallback(async () => {
         try {
             setLoading(true);
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) {
-                Alert.alert("로그인이 필요합니다.", "로그인 후 이용해주세요.");
-                router.replace("/(tabs)/task/login");
-                return;
-            }
-
-            const profile = await apiRequest(`${BASE_URL}/profile`, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-            });
-
+            const profile = await apiGetAuth<any>("/profile");
             setUser(profile);
-            if (profile.imageUrl) {
-                setImage(`${BASE_URL}${profile.imageUrl}`);
-            }
+            setImage(imgUrl(profile.imageUrl));
+            await AsyncStorage.setItem("user", JSON.stringify(profile));
         } catch (err: any) {
             console.error("프로필 불러오기 실패:", err);
             Alert.alert("오류", err.message || "프로필을 불러올 수 없습니다.");
+            router.replace("/(tabs)/task/login");
         } finally {
             setLoading(false);
         }
@@ -77,7 +44,7 @@ export default function ProfileScreen() {
         fetchProfile();
     }, [fetchProfile]);
 
-    // 사진 선택기
+    /** 사진 선택 */
     const pickImage = async () => {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
@@ -86,24 +53,21 @@ export default function ProfileScreen() {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ["images"], // 변경된 부분
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
         });
 
         if (!result.canceled && result.assets.length > 0) {
-            const selected = result.assets[0];
-            setImage(selected.uri);
+            setImage(result.assets[0].uri);
         }
     };
 
-    // 프로필 저장
+    /** 프로필 저장 */
     const handleSave = useCallback(async () => {
         try {
             setSaving(true);
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) throw new Error("토큰이 없습니다.");
 
             const formData = new FormData();
             formData.append("username", user.username || "");
@@ -111,12 +75,11 @@ export default function ProfileScreen() {
             formData.append("bio", user.bio || "");
             formData.append("location", user.location || "");
 
-            // 새 사진이 선택되었다면 추가
-            if (image && image !== `${BASE_URL}${user.imageUrl}`) {
+            // 새 사진이 선택된 경우만 추가
+            if (image && image !== imgUrl(user.imageUrl)) {
                 const filename = image.split("/").pop()!;
                 const match = /\.(\w+)$/.exec(filename);
                 const type = match ? `image/${match[1]}` : `image`;
-
                 formData.append("imageFile", {
                     uri: image,
                     name: filename,
@@ -124,35 +87,23 @@ export default function ProfileScreen() {
                 } as any);
             }
 
-            const updated = await apiRequest(`${BASE_URL}/profile/update`, {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-            });
-
-            console.log("업데이트된 프로필:", updated);
-
+            const updated = await apiUploadAuth<any>("/profile/update", formData);
             await AsyncStorage.setItem("user", JSON.stringify(updated));
+            setUser(updated);
+            setImage(imgUrl(updated.imageUrl));
+
             Alert.alert("저장 완료", "프로필이 업데이트되었습니다.");
-            fetchProfile();
         } catch (err: any) {
             console.error("프로필 저장 실패:", err);
             Alert.alert("오류", err.message || "저장에 실패했습니다.");
         } finally {
             setSaving(false);
         }
-    }, [user, image, fetchProfile]);
+    }, [user, image]);
 
     if (loading) {
         return (
-            <View
-                style={[
-                    styles.container,
-                    { justifyContent: "center", alignItems: "center" },
-                ]}
-            >
+            <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
                 <ActivityIndicator size="large" color="#a78bfa" />
                 <Text style={{ color: "#aaa", marginTop: 10 }}>프로필 불러오는 중...</Text>
             </View>
@@ -190,9 +141,7 @@ export default function ProfileScreen() {
             <View style={styles.profileSection}>
                 <TouchableOpacity onPress={pickImage}>
                     <Image
-                        source={{
-                            uri: image || `${BASE_URL}${user.imageUrl}`,
-                        }}
+                        source={{ uri: image || imgUrl(user.imageUrl) || undefined }}
                         style={styles.avatar}
                     />
                     <Text style={styles.changePhoto}>Change Photo</Text>

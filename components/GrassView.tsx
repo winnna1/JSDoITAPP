@@ -4,14 +4,10 @@ import {
     Text,
     StyleSheet,
     ActivityIndicator,
-    Platform,
     ScrollView,
-    RefreshControl
+    RefreshControl,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
+import { apiGetAuth } from "../lib/api"; // 공통 API 유틸 가져오기
 
 type GrassCell = { date: string; count: number };
 
@@ -21,21 +17,12 @@ export default function GrassView() {
     const [refreshing, setRefreshing] = useState(false);
     const [total, setTotal] = useState(0);
 
-    // 잔디 데이터 요청
+    //  잔디 데이터 요청 (apiGetAuth 사용)
     const fetchGrass = async () => {
         try {
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) return;
-
-            const res = await fetch(`${BASE_URL}/api/v1/task/grass`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (!res.ok) throw new Error("잔디 데이터 요청 실패");
-
-            const data = await res.json();
+            const data = await apiGetAuth<GrassCell[]>("/api/v1/task/grass");
             setGrass(data);
-            setTotal(data.reduce((sum: number, g: GrassCell) => sum + g.count, 0));
+            setTotal(data.reduce((sum, g) => sum + g.count, 0));
         } catch (err) {
             console.error("잔디 로드 실패:", err);
         } finally {
@@ -67,10 +54,10 @@ export default function GrassView() {
         days.unshift(d);
     }
 
-    // 서버에서 받은 날짜별 count 매핑
+    // 서버 데이터 매핑
     const dataMap = new Map(grass.map((g) => [g.date, g.count]));
 
-    // 주 단위 그룹화 (52주 + 내일)
+    // 주 단위 그룹화
     const weeks: Date[][] = [];
     for (let i = 0; i < days.length; i += 7) {
         weeks.push(days.slice(i, i + 7));
@@ -130,7 +117,6 @@ export default function GrassView() {
                             {weeks.map((week, wIdx) => (
                                 <View key={wIdx} style={styles.column}>
                                     {week.map((day, dIdx) => {
-                                        // 날짜 key (UTC 변환 없이 그대로 비교)
                                         const key = day.toISOString().slice(0, 10);
                                         const count = dataMap.get(key) || 0;
 
@@ -178,6 +164,7 @@ const getColorByCount = (count: number) => {
     return "#27272a";
 };
 
+// 스타일 그대로 유지
 const styles = StyleSheet.create({
     container: { marginTop: 25 },
     headerText: {

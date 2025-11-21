@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     ScrollView,
     Image,
-    Platform,
     Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -17,11 +16,8 @@ import ProgressCard from "../../components/ProgressCard";
 import FloatingButton from "../../components/FloatingButton";
 import { useTasks, toKey } from "../../context/TasksContext";
 import GrassView from "../../components/GrassView";
+import { apiGetAuth, imgUrl } from "../../lib/api"; // 통합 API 유틸 사용
 
-const BASE_URL =
-    Platform.OS === "android"
-        ? "http://192.168.45.191:8080" // 본인 IP
-        : "http://localhost:8080";
 
 export default function HomeScreen() {
     const router = useRouter();
@@ -30,42 +26,26 @@ export default function HomeScreen() {
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
 
-    /**프로필 이미지 최초 로드 */
+    /** 프로필 이미지 최초 로드 */
     useEffect(() => {
         const loadProfileImage = async () => {
             try {
-                const token = await AsyncStorage.getItem("accessToken");
-                if (!token) return;
-
-                // 캐시된 user 데이터 확인
                 const cached = await AsyncStorage.getItem("user");
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     if (parsed.imageUrl) {
-                        const uri = parsed.imageUrl.startsWith("http")
-                            ? parsed.imageUrl
-                            : `${BASE_URL}${parsed.imageUrl}`;
-                        setProfileImage(`${uri}?t=${Date.now()}`); // 캐시 방지
+                        const uri = imgUrl(parsed.imageUrl);
+                        setProfileImage(uri ? `${uri}?t=${Date.now()}` : null);
                         return;
                     }
                 }
 
-                // 서버에서 최신 프로필 요청
-                const res = await fetch(`${BASE_URL}/profile`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-
-                if (!res.ok) throw new Error("프로필 요청 실패");
-
-                const profile = await res.json();
+                const profile = await apiGetAuth<any>("/profile");
                 if (profile.imageUrl) {
-                    const uri = profile.imageUrl.startsWith("http")
-                        ? profile.imageUrl
-                        : `${BASE_URL}${profile.imageUrl}`;
-                    setProfileImage(`${uri}?t=${Date.now()}`);
+                    const uri = imgUrl(profile.imageUrl);
+                    setProfileImage(uri ? `${uri}?t=${Date.now()}` : null);
                 }
 
-                // 캐시 저장
                 await AsyncStorage.setItem("user", JSON.stringify(profile));
             } catch (err) {
                 console.error("프로필 이미지 로드 실패:", err);
@@ -85,21 +65,9 @@ export default function HomeScreen() {
 
             const refreshProfile = async () => {
                 try {
-                    const token = await AsyncStorage.getItem("accessToken");
-                    if (!token) return;
-
-                    const res = await fetch(`${BASE_URL}/profile`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-
-                    if (!res.ok) throw new Error("프로필 요청 실패");
-
-                    const profile = await res.json();
-                    const uri = profile.imageUrl.startsWith("http")
-                        ? profile.imageUrl
-                        : `${BASE_URL}${profile.imageUrl}`;
-                    setProfileImage(`${uri}?t=${Date.now()}`); // 새로고침 시 최신 이미지
-
+                    const profile = await apiGetAuth<any>("/profile");
+                    const uri = imgUrl(profile.imageUrl);
+                    setProfileImage(uri ? `${uri}?t=${Date.now()}` : null);
                     await AsyncStorage.setItem("user", JSON.stringify(profile));
                 } catch (err) {
                     console.error("프로필 새로고침 실패:", err);
@@ -265,10 +233,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: 10,
     },
-    profileWrapper: {
-        position: "relative",
-        alignSelf: "flex-end",
-    },
+    profileWrapper: { position: "relative", alignSelf: "flex-end" },
     profileImage: {
         width: 60,
         height: 60,

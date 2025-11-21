@@ -1,4 +1,4 @@
-// constants/priorities.ts (선택 파일)
+// constants/priorities.ts
 export type Priority = "High" | "Medium" | "Low";
 
 export const PRIORITY_COLOR: Record<Priority, string> = {

@@ -11,53 +11,17 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { apiPost } from "../../../lib/api";
 
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
-
-/** 공통 fetch 유틸 */
-async function apiRequest(url: string, options: RequestInit, router?: any) {
-    const token = await AsyncStorage.getItem("accessToken");
-
-    // JWT 토큰 자동 포함
-    const headers = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
+type LoginResponse = {
+    accessToken?: string;
+    refreshToken?: string;
+    token?: string;
+    data?: {
+        accessToken?: string;
+        refreshToken?: string;
     };
-
-    const res = await fetch(url, { ...options, headers });
-    const text = await res.text();
-
-    let data: any = {};
-    try {
-        data = JSON.parse(text);
-    } catch {
-        data = { message: text };
-    }
-
-    // 401 또는 403 ⇒ 자동 로그아웃 처리
-    if (res.status === 401 || res.status === 403) {
-        console.warn("JWT 인증 실패 → 자동 로그아웃");
-
-        // 저장된 토큰 삭제
-        await AsyncStorage.multiRemove(["accessToken", "refreshToken"]);
-
-        // 로그인 화면으로 이동
-        if (router) {
-            router.replace("/(tabs)/task/login"); // 경로에 맞게 수정
-        }
-
-        throw new Error("인증이 만료되었습니다. 다시 로그인해주세요.");
-    }
-
-    if (!res.ok) {
-        console.log("API 실패:", res.status, data);
-        throw new Error(data.message || "서버 요청 실패");
-    }
-
-    return data;
-}
+};
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -66,10 +30,7 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
 
     const handleLogin = useCallback(async () => {
-        const emailTrim = email.trim();
-        const passwordTrim = password.trim();
-
-        if (!emailTrim || !passwordTrim) {
+        if (!email.trim() || !password.trim()) {
             Alert.alert("로그인 실패", "이메일과 비밀번호를 모두 입력해주세요.");
             return;
         }
@@ -77,14 +38,10 @@ export default function LoginScreen() {
         try {
             setLoading(true);
 
-            // 로그인 요청
-            const loginData = await apiRequest(`${BASE_URL}/oauth/signin`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
+            const loginData = await apiPost<LoginResponse>("/oauth/signin", {
+                email,
+                password,
             });
-
-            console.log("로그인 응답:", loginData);
 
             const token =
                 loginData.data?.accessToken ||
@@ -109,10 +66,6 @@ export default function LoginScreen() {
             setLoading(false);
         }
     }, [email, password]);
-
-    const handleRegister = useCallback(() => {
-        router.push("/(tabs)/task/signup");
-    }, [router]);
 
     return (
         <KeyboardAvoidingView
@@ -154,10 +107,6 @@ export default function LoginScreen() {
                         {loading ? "Loading..." : "Login"}
                     </Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-                    <Text style={styles.registerText}>회원가입</Text>
-                </TouchableOpacity>
             </View>
         </KeyboardAvoidingView>
     );
@@ -193,6 +142,4 @@ const styles = StyleSheet.create({
     },
     buttonDisabled: { backgroundColor: "#4b4b5a" },
     buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-    registerButton: { marginTop: 14, alignItems: "center" },
-    registerText: { color: "#a78bfa", fontSize: 14 },
 });

@@ -1,14 +1,19 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { TasksProvider } from "@/context/TasksContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import { Platform, Alert } from "react-native";
+import { Platform, Alert, ActivityIndicator, View } from "react-native";
 
 export default function RootLayout() {
+    const [isReady, setIsReady] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
     useEffect(() => {
-        const setupNotifications = async () => {
+        const setup = async () => {
+            // 알림 초기화
             try {
                 Notifications.setNotificationHandler({
                     handleNotification: async () => ({
@@ -31,29 +36,42 @@ export default function RootLayout() {
                     });
                 }
 
-                // 포그라운드 알림 리스너 등록
-                const sub = Notifications.addNotificationReceivedListener((notification) => {
-                    const { title, body } = notification.request.content;
-                    Alert.alert(title ?? "알림", body ?? "");
-                });
-
-                return () => sub.remove();
+                // 로그인 여부 확인
+                const token = await AsyncStorage.getItem("accessToken");
+                setIsLoggedIn(!!token);
             } catch (err) {
-                console.error("알림 초기화 실패:", err);
+                console.error("초기화 실패:", err);
+            } finally {
+                setIsReady(true);
             }
         };
 
-        setupNotifications();
+        setup();
     }, []);
+
+    // 아직 초기화 중이면 로딩 스크린
+    if (!isReady) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#000" }}>
+                <ActivityIndicator size="large" color="#a78bfa" />
+            </View>
+        );
+    }
 
     return (
         <SafeAreaProvider>
             <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
-                <TasksProvider>
+                {/* 로그인된 경우에만 TasksProvider 활성화 */}
+                {isLoggedIn ? (
+                    <TasksProvider>
+                        <Stack screenOptions={{ headerShown: false }} />
+                    </TasksProvider>
+                ) : (
                     <Stack screenOptions={{ headerShown: false }} />
-                    <StatusBar style="light" />
-                </TasksProvider>
+                )}
+                <StatusBar style="light" />
             </SafeAreaView>
         </SafeAreaProvider>
     );
 }
+

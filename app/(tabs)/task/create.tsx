@@ -10,16 +10,27 @@ import {
     Alert,
     Platform,
     KeyboardAvoidingView,
-    SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context"; // 새 SafeAreaView
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import CalendarView from "../../../components/CalendarView";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { scheduleTaskNotification } from "../../../utils/notifications";
+import { apiPostAuth } from "../../../lib/api"; // 통합된 API 유틸 사용
 
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
+// Task 타입 정의
+type STask = {
+    id: string;
+    title: string;
+    content?: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    priority: "High" | "Medium" | "Low";
+    alertEnabled?: boolean;
+    userId?: string;
+    username?: string;
+};
 
 export default function CreateTaskScreen() {
     const router = useRouter();
@@ -30,7 +41,7 @@ export default function CreateTaskScreen() {
     );
     const [name, setName] = useState("");
     const [content, setContent] = useState("");
-    const [priority, setPriority] = useState("Medium");
+    const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium");
     const [alertEnabled, setAlertEnabled] = useState(false);
     const [startTime, setStartTime] = useState<Date>(() => {
         const d = new Date();
@@ -52,7 +63,7 @@ export default function CreateTaskScreen() {
             hour12: true,
         });
 
-    /** TimePicker 변경 */
+    /** 시간 선택 변경 */
     const onChangeTime = (_e: DateTimePickerEvent, date?: Date) => {
         if (Platform.OS === "android") setShowPicker(null);
         if (!date) return;
@@ -84,9 +95,6 @@ export default function CreateTaskScreen() {
     const handleCreate = async () => {
         if (!name.trim()) return Alert.alert("입력 오류", "Task 이름을 입력하세요.");
 
-        const token = await AsyncStorage.getItem("accessToken");
-        if (!token) return Alert.alert("로그인 필요", "로그인 후 이용하세요.");
-
         const newTask = {
             title: name,
             content,
@@ -94,22 +102,14 @@ export default function CreateTaskScreen() {
             priority,
             startTime: startTime.toISOString(),
             endTime: endTime.toISOString(),
+            alertEnabled,
         };
 
         try {
-            const res = await fetch(`${BASE_URL}/api/v1/task`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(newTask),
-            });
+            // 서버에 Task 생성 요청
+            const createdTask = await apiPostAuth<STask>("/api/v1/task", newTask);
 
-            if (!res.ok) throw new Error("작업 생성 실패");
-            const createdTask = await res.json();
-
-            // 알림 설정 ON이면 예약
+            // 알림 설정이 켜져 있으면 예약
             if (alertEnabled) {
                 await scheduleTaskNotification(createdTask);
             }
@@ -117,9 +117,9 @@ export default function CreateTaskScreen() {
             Alert.alert("Task Created!", `"${name}"이 추가되었습니다.`, [
                 { text: "OK", onPress: () => router.replace("/(tabs)/home") },
             ]);
-        } catch (err) {
+        } catch (err: any) {
             console.error("Task 생성 오류:", err);
-            Alert.alert("실패", "작업을 생성할 수 없습니다.");
+            Alert.alert("실패", err.message || "작업을 생성할 수 없습니다.");
         }
     };
 
@@ -161,11 +161,17 @@ export default function CreateTaskScreen() {
 
                     <Text style={styles.label}>Time</Text>
                     <View style={styles.timeRow}>
-                        <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("start")}>
+                        <TouchableOpacity
+                            style={styles.timeBox}
+                            onPress={() => setShowPicker("start")}
+                        >
                             <Text style={styles.timeLabel}>Start</Text>
                             <Text style={styles.timeValue}>{formatTime(startTime)}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.timeBox} onPress={() => setShowPicker("end")}>
+                        <TouchableOpacity
+                            style={styles.timeBox}
+                            onPress={() => setShowPicker("end")}
+                        >
                             <Text style={styles.timeLabel}>End</Text>
                             <Text style={styles.timeValue}>{formatTime(endTime)}</Text>
                         </TouchableOpacity>
@@ -190,7 +196,7 @@ export default function CreateTaskScreen() {
                                     styles.priorityBtn,
                                     priority === p && { backgroundColor: getPriorityColor(p) },
                                 ]}
-                                onPress={() => setPriority(p)}
+                                onPress={() => setPriority(p as "High" | "Medium" | "Low")}
                             >
                                 <Text style={styles.priorityText}>{p}</Text>
                             </TouchableOpacity>
@@ -211,9 +217,11 @@ export default function CreateTaskScreen() {
     );
 }
 
+/** 색상 함수 */
 const getPriorityColor = (p: string) =>
     p === "High" ? "#f87171" : p === "Medium" ? "#a78bfa" : "#4ade80";
 
+/** 스타일 */
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000", padding: 20 },
     back: { color: "#fff", fontSize: 22 },

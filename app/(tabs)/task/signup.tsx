@@ -11,31 +11,7 @@ import {
     ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-
-const BASE_URL =
-    Platform.OS === "android"
-        ? "http://192.168.45.191:8080" // Android 에뮬레이터용 로컬호스트
-        : "http://localhost:8080"; // iOS 시뮬레이터용
-
-// 공통 API 유틸
-async function apiRequest(url: string, options: RequestInit) {
-    const res = await fetch(url, options);
-    const text = await res.text();
-
-    let data: any = {};
-    try {
-        data = JSON.parse(text);
-    } catch {
-        data = { message: text };
-    }
-
-    if (!res.ok) {
-        console.log("API 실패:", res.status, data);
-        throw new Error(data.message || "서버 요청 실패");
-    }
-
-    return data;
-}
+import { apiPost } from "../../../lib/api"; // 공통 API 유틸 사용
 
 export default function SignupScreen() {
     const router = useRouter();
@@ -49,7 +25,7 @@ export default function SignupScreen() {
     const [location, setLocation] = useState("");
     const [loading, setLoading] = useState(false);
 
-    //회원가입 처리
+    /** 회원가입 처리 */
     const handleRegister = useCallback(async () => {
         if (!email || !password || !nickname || !username) {
             Alert.alert("입력 오류", "필수 항목(이메일, 비밀번호, 닉네임, 이름)을 입력해주세요.");
@@ -59,25 +35,12 @@ export default function SignupScreen() {
         try {
             setLoading(true);
 
-            const newUser = {
-                email,
-                password,
-                nickname,
-                username,
-                phone,
-                bio,
-                location,
-            };
+            const newUser = { email, password, nickname, username, phone, bio, location };
 
             console.log("회원가입 요청:", newUser);
 
-            const response = await apiRequest(`${BASE_URL}/oauth/signup`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json; charset=utf-8", // 한글 깨짐 방지
-                },
-                body: JSON.stringify(newUser),
-            });
+            // api의 공통 함수 사용
+            const response = await apiPost("/oauth/signup", newUser);
 
             console.log("서버 응답:", response);
 
@@ -124,7 +87,7 @@ export default function SignupScreen() {
                         secureTextEntry
                         value={password}
                         onChangeText={setPassword}
-                        keyboardType="default" // 한글 입력 가능
+                        keyboardType="default"
                     />
 
                     <Text style={styles.label}>닉네임 *</Text>
@@ -134,7 +97,7 @@ export default function SignupScreen() {
                         placeholderTextColor="#888"
                         value={nickname}
                         onChangeText={setNickname}
-                        keyboardType="default" // 한글 입력 가능
+                        keyboardType="default"
                     />
 
                     <Text style={styles.label}>이름 *</Text>
@@ -144,7 +107,7 @@ export default function SignupScreen() {
                         placeholderTextColor="#888"
                         value={username}
                         onChangeText={setUsername}
-                        keyboardType="default" // 한글 입력 가능
+                        keyboardType="default"
                     />
 
                     <Text style={styles.label}>전화번호</Text>
@@ -165,7 +128,7 @@ export default function SignupScreen() {
                         value={bio}
                         onChangeText={setBio}
                         multiline
-                        keyboardType="default" // 한글 입력 가능
+                        keyboardType="default"
                     />
 
                     <Text style={styles.label}>위치</Text>
@@ -175,7 +138,7 @@ export default function SignupScreen() {
                         placeholderTextColor="#888"
                         value={location}
                         onChangeText={setLocation}
-                        keyboardType="default" // 한글 입력 가능
+                        keyboardType="default"
                     />
 
                     <TouchableOpacity

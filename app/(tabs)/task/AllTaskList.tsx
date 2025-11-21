@@ -5,51 +5,57 @@ import {
     StyleSheet,
     TouchableOpacity,
     ScrollView,
-    Platform,
     Alert,
     Image,
     ActivityIndicator,
     RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { apiGetAuth, apiPutAuth, imgUrl } from "@/lib/api";
 import ProgressCard from "@/components/ProgressCard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const BASE_URL =
-    Platform.OS === "android" ? "http://192.168.45.191:8080" : "http://localhost:8080";
+interface Task {
+    id: string;
+    title: string;
+    date: string;
+    priority: "High" | "Medium" | "Low";
+    done: boolean;
+}
+
+interface GrassData {
+    date: string;
+    count: number;
+}
+
+interface Profile {
+    imageUrl?: string;
+}
 
 export default function AllTaskListScreen() {
     const router = useRouter();
-    const [tasks, setTasks] = useState<any[]>([]);
+    const [tasks, setTasks] = useState<Task[]>([]);
     const [userImage, setUserImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [grass, setGrass] = useState<{ date: string; count: number }[]>([]);
+    const [grass, setGrass] = useState<GrassData[]>([]);
     const [total, setTotal] = useState(0);
     const [refreshing, setRefreshing] = useState(false);
 
-    // 사용자 프로필 불러오기
+    /** 사용자 프로필 불러오기 */
     const loadUserProfile = async () => {
         try {
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) return;
-
             const cached = await AsyncStorage.getItem("user");
             if (cached) {
-                const parsed = JSON.parse(cached);
+                const parsed: Profile = JSON.parse(cached);
                 if (parsed.imageUrl) {
-                    setUserImage(`${BASE_URL}${parsed.imageUrl}`);
+                    setUserImage(imgUrl(parsed.imageUrl));
                     return;
                 }
             }
 
-            const res = await fetch(`${BASE_URL}/profile`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error("프로필 요청 실패");
-            const profile = await res.json();
-
+            const profile = await apiGetAuth<Profile>("/profile");
             if (profile.imageUrl) {
-                setUserImage(`${BASE_URL}${profile.imageUrl}`);
+                setUserImage(imgUrl(profile.imageUrl));
                 await AsyncStorage.setItem("user", JSON.stringify(profile));
             }
         } catch (err) {
@@ -57,19 +63,11 @@ export default function AllTaskListScreen() {
         }
     };
 
-    // Task 불러오기
+    /** Task 불러오기 */
     const loadTasks = async () => {
         try {
             setLoading(true);
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) throw new Error("토큰이 없습니다.");
-
-            const res = await fetch(`${BASE_URL}/api/v1/task/today-tomorrow`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (!res.ok) throw new Error("서버 요청 실패");
-            const data = await res.json();
+            const data = await apiGetAuth<Task[]>("/api/v1/task/today-tomorrow");
             setTasks(data);
         } catch (err) {
             console.error("작업 불러오기 실패:", err);
@@ -79,59 +77,43 @@ export default function AllTaskListScreen() {
         }
     };
 
-    // 잔디 데이터 불러오기
+    /** 잔디 데이터 불러오기 */
     const loadGrass = async () => {
         try {
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) return;
-            const res = await fetch(`${BASE_URL}/api/v1/task/grass`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error("잔디 요청 실패");
-            const data = await res.json();
+            const data = await apiGetAuth<GrassData[]>("/api/v1/task/grass");
             setGrass(data);
-            setTotal(data.reduce((sum: number, g: { count: number }) => sum + g.count, 0));
+            setTotal(data.reduce((sum, g) => sum + g.count, 0));
         } catch (err) {
             console.error("잔디 불러오기 실패:", err);
         }
     };
 
-    // 초기 로드
+    /** 초기 로드 */
     useEffect(() => {
         loadUserProfile();
         loadTasks();
         loadGrass();
     }, []);
 
-    // 완료 상태 토글 (잔디 반영)
+    /** 완료 상태 토글 */
     const toggleDone = async (id: string) => {
         try {
             setTasks((prev) =>
                 prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
             );
 
-            const token = await AsyncStorage.getItem("accessToken");
-            if (!token) return;
-
             const task = tasks.find((t) => t.id === id);
             if (!task) return;
 
-            await fetch(`${BASE_URL}/api/v1/task/${id}/done?done=${!task.done}`, {
-                method: "PUT",
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            console.log(`Task(${id}) 완료 상태 변경됨 → ${!task.done}`);
-
-            // 잔디 즉시 갱신
-            await loadGrass();
+            await apiPutAuth(`/api/v1/task/${id}/done?done=${!task.done}`, {});
+            await loadGrass(); // 잔디 즉시 갱신
         } catch (err) {
             console.error("완료 상태 변경 실패:", err);
             Alert.alert("오류", "Task 완료 상태 변경 실패");
         }
     };
 
-    // 날짜 계산
+    /** 날짜 계산 */
     const getLocalDate = (offsetDays = 0) => {
         const date = new Date();
         date.setDate(date.getDate() + offsetDays);
@@ -144,6 +126,7 @@ export default function AllTaskListScreen() {
     const todayTasks = tasks.filter((t) => t.date === today);
     const tomorrowTasks = tasks.filter((t) => t.date === tomorrow);
 
+    /** 진행도 계산 */
     const { totalTasks, doneCount, progress } = useMemo(() => {
         const total = todayTasks.length + tomorrowTasks.length;
         const done = tasks.filter((t) => t.done).length;
@@ -156,11 +139,9 @@ export default function AllTaskListScreen() {
 
     const handleProfile = () => router.push("/(tabs)/task/profile");
 
-    // 한국 시간 기준 오늘
+    // 최근 1년치 기준 잔디용 날짜 계산
     const now = new Date();
     const todayKST = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-
-    // 최근 1년 + 내일(오늘+1일)
     const days: Date[] = [];
     for (let i = -1; i < 365; i++) {
         const d = new Date(todayKST);
@@ -168,14 +149,10 @@ export default function AllTaskListScreen() {
         days.unshift(d);
     }
 
-    // 데이터 매핑
     const dataMap = new Map(grass.map((g) => [g.date, g.count]));
-
-    // 주 단위 그룹화
     const weeks: Date[][] = [];
     for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
-    // 월 표시
     const monthLabels: { index: number; month: string }[] = [];
     let prevMonth = "";
     weeks.forEach((w, i) => {
@@ -197,6 +174,7 @@ export default function AllTaskListScreen() {
 
     return (
         <View style={styles.container}>
+            {/* 헤더 */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()}>
                     <Text style={styles.backArrow}>←</Text>
@@ -215,6 +193,7 @@ export default function AllTaskListScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* 본문 */}
             <ScrollView
                 refreshControl={
                     <RefreshControl
@@ -297,7 +276,10 @@ export default function AllTaskListScreen() {
                             style={styles.taskCard}
                             onPress={() => toggleDone(t.id)}
                             onLongPress={() =>
-                                router.push({ pathname: "/(tabs)/task/edit", params: { id: t.id } })
+                                router.push({
+                                    pathname: "/(tabs)/task/edit",
+                                    params: { id: t.id },
+                                })
                             }
                         >
                             <View
@@ -310,7 +292,7 @@ export default function AllTaskListScreen() {
                                 <Text style={styles.taskTitle}>{t.title}</Text>
                                 <Text style={styles.taskDate}>📅 {t.date}</Text>
                             </View>
-                            <Text style={styles.checkmark}>{t.done ? "✅" : "○"}</Text>
+                            <Text style={styles.checkmark}>{t.done ? "✓" : "○"}</Text>
                         </TouchableOpacity>
                     ))
                 )}
@@ -325,7 +307,10 @@ export default function AllTaskListScreen() {
                             style={styles.taskCard}
                             onPress={() => toggleDone(t.id)}
                             onLongPress={() =>
-                                router.push({ pathname: "/(tabs)/task/edit", params: { id: t.id } })
+                                router.push({
+                                    pathname: "/(tabs)/task/edit",
+                                    params: { id: t.id },
+                                })
                             }
                         >
                             <View
@@ -338,7 +323,7 @@ export default function AllTaskListScreen() {
                                 <Text style={styles.taskTitle}>{t.title}</Text>
                                 <Text style={styles.taskDate}>📅 {t.date}</Text>
                             </View>
-                            <Text style={styles.checkmark}>{t.done ? "✅" : "○"}</Text>
+                            <Text style={styles.checkmark}>{t.done ? "✓" : "○"}</Text>
                         </TouchableOpacity>
                     ))
                 )}
@@ -347,12 +332,9 @@ export default function AllTaskListScreen() {
     );
 }
 
+/** 색상 유틸 */
 const getPriorityColor = (priority: string) =>
-    priority === "High"
-        ? "#f87171"
-        : priority === "Medium"
-            ? "#a78bfa"
-            : "#4ade80";
+    priority === "High" ? "#f87171" : priority === "Medium" ? "#a78bfa" : "#4ade80";
 
 const getColorByCount = (count: number) => {
     if (count >= 5) return "#16a34a";
@@ -362,6 +344,7 @@ const getColorByCount = (count: number) => {
     return "#27272a";
 };
 
+/** 스타일 */
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#0b0b0f", padding: 20 },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
